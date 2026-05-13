@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Gravity Runner Prototype</title>
+  <title>Gravity Runner</title>
   <style>
     * {
       box-sizing: border-box;
@@ -175,12 +175,45 @@
       color: #050505;
     }
 
-    .testerNote {
+    .releaseNote {
       border-top: 2px solid #333;
       border-bottom: 2px solid #333;
       padding: 10px 0;
       color: #bdfbff;
       font-size: 13px;
+    }
+
+    .purchaseBtn {
+      background: #ffe66d;
+      color: #050505;
+    }
+
+    .purchaseBtn.owned {
+      background: #4dabff;
+      color: #050505;
+    }
+
+    .restoreBtn {
+      background: #bdfbff;
+      color: #050505;
+    }
+
+    .adSlot {
+      margin: 12px auto 0;
+      width: min(320px, 86vw);
+      min-height: 38px;
+      border: 2px dashed #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #777;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .adSlot.hidden {
+      display: none;
     }
 
     .hiddenSoft {
@@ -354,7 +387,7 @@
       <div class="box">
         <h1>Gravity Runner</h1>
         <p class="subtitle">A tiny Atari-style endless maze runner.</p>
-        <div class="versionTag" id="versionLabel">v0.1 Feedback Build</div>
+        <div class="versionTag" id="versionLabel">v0.1 Galaxy Preview</div>
         <p class="instructions" id="startStatsText">Level: 1 / Best: 0 / Runs: 0</p>
         <div class="difficultySelect" aria-label="Difficulty selection">
           <div class="difficultyTitle">Choose Speed</div>
@@ -364,9 +397,13 @@
             <button class="difficultyBtn" type="button" data-difficulty="expert">Expert</button>
           </div>
         </div>
-        <div class="utilityRow" aria-label="Feedback build controls">
+        <div class="utilityRow" aria-label="Game controls">
           <button id="soundToggleBtn" class="utilityBtn" type="button">Sound: On</button>
           <button id="resetProgressBtn" class="utilityBtn danger" type="button">Reset Progress</button>
+        </div>
+        <div class="utilityRow" aria-label="Purchase controls">
+          <button id="removeAdsBtn" class="utilityBtn purchaseBtn" type="button">Remove Ads</button>
+          <button id="restorePurchaseBtn" class="utilityBtn restoreBtn" type="button">Restore</button>
         </div>
         <p class="instructions">
           Hold the screen, mouse, or SPACEBAR to float up.<br />
@@ -380,6 +417,7 @@
           <span class="rewardPill red">L LIFE</span>
         </div>
         <button id="startBtn">Start</button>
+        <div id="startAdSlot" class="adSlot">Ad space</div>
       </div>
     </section>
 
@@ -398,11 +436,12 @@
             <button class="difficultyBtn" type="button" data-difficulty="expert">Expert</button>
           </div>
         </div>
-        <p class="testerNote" id="feedbackPromptText">Tester note: did you want to retry right away? What felt unfair?</p>
-        <div class="adActions hiddenSoft" id="adActionWrap" aria-label="Future ad reward placeholders">
-          <button id="continueAdBtn" class="adBtn" type="button">Ad Soon: Continue</button>
-          <button id="passLevelAdBtn" class="adBtn" type="button">Ad Soon: Pass Level</button>
+        <p class="releaseNote" id="rewardPromptText">Need more tries? Use an optional reward when available.</p>
+        <div class="adActions hiddenSoft" id="adActionWrap" aria-label="Reward actions">
+          <button id="continueAdBtn" class="adBtn" type="button">Watch Ad: Continue</button>
+          <button id="passLevelAdBtn" class="adBtn" type="button">Watch Ad: +3 Retries</button>
         </div>
+        <div id="gameOverAdSlot" class="adSlot hidden">Ad space</div>
         <button id="restartBtn">Retry Level</button>
       </div>
     </section>
@@ -449,20 +488,24 @@
     const versionLabel = document.getElementById("versionLabel");
     const soundToggleBtn = document.getElementById("soundToggleBtn");
     const resetProgressBtn = document.getElementById("resetProgressBtn");
+    const removeAdsBtn = document.getElementById("removeAdsBtn");
+    const restorePurchaseBtn = document.getElementById("restorePurchaseBtn");
+    const startAdSlot = document.getElementById("startAdSlot");
     const gameOverTitle = document.getElementById("gameOverTitle");
     const finalScoreText = document.getElementById("finalScoreText");
     const finalBestText = document.getElementById("finalBestText");
     const finalStatsText = document.getElementById("finalStatsText");
     const finalRankText = document.getElementById("finalRankText");
     const pauseStatsText = document.getElementById("pauseStatsText");
-    const feedbackPromptText = document.getElementById("feedbackPromptText");
+    const rewardPromptText = document.getElementById("rewardPromptText");
     const adActionWrap = document.getElementById("adActionWrap");
     const continueAdBtn = document.getElementById("continueAdBtn");
     const passLevelAdBtn = document.getElementById("passLevelAdBtn");
+    const gameOverAdSlot = document.getElementById("gameOverAdSlot");
     const tapHint = document.getElementById("tapHint");
     const messageFlash = document.getElementById("messageFlash");
 
-    const appVersion = "v0.1 Feedback Build";
+    const appVersion = "v0.1 Galaxy Preview";
 
     const difficultyModes = {
       beginner: { label: "BEGINNER", speedMultiplier: 1.00 },
@@ -538,6 +581,8 @@
     let currentDifficulty = localStorage.getItem("gravityRunnerDifficulty") || "beginner";
     if (!difficultyModes[currentDifficulty]) currentDifficulty = "beginner";
     let soundEnabled = localStorage.getItem("gravityRunnerSound") !== "off";
+    let adsRemoved = localStorage.getItem("gravityRunnerAdsRemoved") === "true";
+    let adEventCounter = Number(localStorage.getItem("gravityRunnerAdEventCounter") || 0);
     let lastTime = 0;
     let shake = 0;
     let currentRank = "ROOKIE";
@@ -632,6 +677,7 @@
       totalRuns += 1;
       localStorage.setItem("gravityRunnerTotalRuns", String(totalRuns));
       hideMessage();
+      hideMenuAds();
 
       const config = getLevelConfig();
       currentMazeSpeed = config.speed;
@@ -664,6 +710,7 @@
       gameOverTitle.textContent = "Game Over";
       restartBtn.textContent = "Retry Level";
       adActionWrap.classList.add("hiddenSoft");
+      gameOverAdSlot.classList.add("hidden");
       startPanel.classList.add("hidden");
       gameOverPanel.classList.add("hidden");
       pausePanel.classList.add("hidden");
@@ -870,10 +917,12 @@
       finalBestText.textContent = "Best: " + best + " / Runs: " + totalRuns;
       finalStatsText.textContent = "Next Level: " + currentLevel + " / Gates: " + getLevelGoal() + " / " + difficultyModes[currentDifficulty].label;
       finalRankText.textContent = "Rank: " + getRank(rounded);
-      feedbackPromptText.textContent = "Tester note: did level " + (currentLevel - 1) + " feel fair? Did you want the next level?";
+      rewardPromptText.textContent = "Level cleared. Nice run.";
       gameOverTitle.textContent = "Level Complete";
       restartBtn.textContent = "Next Level";
       adActionWrap.classList.add("hiddenSoft");
+      maybeShowInterstitial("level_complete");
+      updateAdSlots();
       bestText.textContent = best;
       updateStartStats();
 
@@ -1160,9 +1209,11 @@
       finalBestText.textContent = "Best: " + best + " / Runs: " + totalRuns;
       finalStatsText.textContent = getRetryStatusText();
       finalRankText.textContent = "Rank: " + getRank(rounded);
-      feedbackPromptText.textContent = getFeedbackPromptText();
+      rewardPromptText.textContent = getRewardPromptText();
       restartBtn.textContent = getRetryButtonText();
-      adActionWrap.classList.remove("hiddenSoft");
+      updateRewardButtons();
+      maybeShowInterstitial("level_failed");
+      updateAdSlots();
       bestText.textContent = best;
       updateStartStats();
 
@@ -1475,6 +1526,9 @@
       showMessage(soundEnabled ? "SOUND ON" : "SOUND OFF", 34);
     });
 
+    removeAdsBtn.addEventListener("click", purchaseRemoveAds);
+    restorePurchaseBtn.addEventListener("click", restorePurchases);
+
     resetProgressBtn.addEventListener("click", () => {
       const confirmed = window.confirm("Reset Gravity Runner progress on this device?");
       if (!confirmed) return;
@@ -1502,16 +1556,11 @@
     });
 
     continueAdBtn.addEventListener("click", () => {
-      showMessage("AD CONTINUE SOON", 58);
-      feedbackPromptText.textContent = "Future rewarded ad: continue this level with 1 life.";
+      requestRewardedContinue();
     });
 
     passLevelAdBtn.addEventListener("click", () => {
-      adRetryCredits += settings.adRetryGrant;
-      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
-      showMessage("+" + settings.adRetryGrant + " RETRIES", 62);
-      feedbackPromptText.textContent = "Feedback simulation: rewarded ad granted " + settings.adRetryGrant + " extra retries for Level " + currentLevel + ".";
-      restartBtn.textContent = "Retry Level " + currentLevel + " (Ad Credit " + adRetryCredits + ")";
+      requestRewardedRetryGrant();
     });
 
     difficultyButtons.forEach((button) => {
@@ -1645,15 +1694,15 @@
       return "No retries left. Start over at Level 1 or use the future rewarded-ad retry.";
     }
 
-    function getFeedbackPromptText() {
+    function getRewardPromptText() {
       const retriesLeft = getRetriesLeft();
       if (retriesLeft > 0) {
-        return "Tester note: would you retry? " + retriesLeft + " normal retries left on this level.";
+        return "You have " + retriesLeft + " normal retries left on this level.";
       }
       if (adRetryCredits > 0) {
-        return "Rewarded-ad simulation active: you have " + adRetryCredits + " extra retry credit(s).";
+        return "Reward credit active: " + adRetryCredits + " extra retry credit(s).";
       }
-      return "Tester note: after 3 fails, would you watch an ad for more retries or start over?";
+      return "No retries left. Start over at Level 1 or use a rewarded ad for more tries.";
     }
 
     function getRetryButtonText() {
@@ -1662,6 +1711,119 @@
       if (adRetryCredits > 0) return "Retry Level " + currentLevel + " (Ad Credit " + adRetryCredits + ")";
       return "Start Over at Level 1";
     }
+
+    function updateRewardButtons() {
+      const retriesLeft = getRetriesLeft();
+      const canUseReward = retriesLeft <= 0;
+      adActionWrap.classList.toggle("hiddenSoft", !canUseReward);
+      continueAdBtn.disabled = lives > 0;
+      passLevelAdBtn.disabled = false;
+      passLevelAdBtn.textContent = "Watch Ad: +" + settings.adRetryGrant + " Retries";
+    }
+
+    function getNativeBridge() {
+      return window.GravityRunnerNative || null;
+    }
+
+    function callNativeBridge(methodName, fallback) {
+      const bridge = getNativeBridge();
+      if (bridge && typeof bridge[methodName] === "function") {
+        try {
+          bridge[methodName]();
+          return;
+        } catch (error) {
+          console.warn("GravityRunnerNative." + methodName + " failed", error);
+        }
+      }
+      fallback();
+    }
+
+    function purchaseRemoveAds() {
+      callNativeBridge("purchaseRemoveAds", () => {
+        showMessage("PURCHASE NEEDS STORE", 70);
+      });
+    }
+
+    function restorePurchases() {
+      callNativeBridge("restorePurchases", () => {
+        showMessage(adsRemoved ? "ADS REMOVED" : "NO PURCHASE FOUND", 60);
+      });
+    }
+
+    function setAdsRemoved(value) {
+      adsRemoved = Boolean(value);
+      localStorage.setItem("gravityRunnerAdsRemoved", String(adsRemoved));
+      updatePurchaseUi();
+      updateAdSlots();
+      showMessage(adsRemoved ? "ADS REMOVED" : "ADS ON", 60);
+    }
+
+    function requestRewardedContinue() {
+      callNativeBridge("showRewardedContinueAd", () => {
+        showMessage("REWARD AD NEEDS SDK", 70);
+      });
+    }
+
+    function requestRewardedRetryGrant() {
+      callNativeBridge("showRewardedRetryAd", () => {
+        showMessage("REWARD AD NEEDS SDK", 70);
+      });
+    }
+
+    function grantRewardedContinue() {
+      if (!gameOver) return;
+      lives = 1;
+      gameOver = false;
+      running = true;
+      paused = false;
+      invincibleTimer = settings.invincibleDuration;
+      gameOverPanel.classList.add("hidden");
+      pauseBtn.classList.remove("hidden");
+      showMessage("CONTINUE", 54);
+      lastTime = performance.now();
+    }
+
+    function grantRewardedRetries() {
+      adRetryCredits += settings.adRetryGrant;
+      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
+      showMessage("+" + settings.adRetryGrant + " RETRIES", 62);
+      rewardPromptText.textContent = "Reward granted: " + settings.adRetryGrant + " extra retries for Level " + currentLevel + ".";
+      restartBtn.textContent = getRetryButtonText();
+      updateRewardButtons();
+    }
+
+    function maybeShowInterstitial(reason) {
+      if (adsRemoved) return;
+      adEventCounter += 1;
+      localStorage.setItem("gravityRunnerAdEventCounter", String(adEventCounter));
+      if (adEventCounter % 3 !== 0) return;
+      callNativeBridge("showInterstitialAd", () => {
+        console.log("Interstitial ad placeholder:", reason);
+      });
+    }
+
+    function updateAdSlots() {
+      const hideAds = adsRemoved;
+      startAdSlot.classList.toggle("hidden", hideAds || startPanel.classList.contains("hidden"));
+      gameOverAdSlot.classList.toggle("hidden", hideAds || gameOverPanel.classList.contains("hidden"));
+    }
+
+    function hideMenuAds() {
+      startAdSlot.classList.add("hidden");
+      gameOverAdSlot.classList.add("hidden");
+    }
+
+    function updatePurchaseUi() {
+      removeAdsBtn.textContent = adsRemoved ? "Ads Removed" : "Remove Ads";
+      removeAdsBtn.classList.toggle("owned", adsRemoved);
+      removeAdsBtn.disabled = adsRemoved;
+    }
+
+    window.GravityRunnerRewards = {
+      grantContinue: grantRewardedContinue,
+      grantRetries: grantRewardedRetries,
+      setAdsRemoved
+    };
 
     function updateSoundButton() {
       soundToggleBtn.textContent = soundEnabled ? "Sound: On" : "Sound: Off";
@@ -1676,13 +1838,15 @@
 
     function updateStartStats() {
       versionLabel.textContent = appVersion;
-      startStatsText.textContent = "Level: " + currentLevel + " / " + difficultyModes[currentDifficulty].label + " / Best: " + best + " / Runs: " + totalRuns + " / Fails: " + levelFailAttempts + "/" + settings.freeRetriesPerLevel;
+      startStatsText.textContent = "Level: " + currentLevel + " / " + difficultyModes[currentDifficulty].label + " / Best: " + best + " / Runs: " + totalRuns;
+      updateAdSlots();
     }
 
     resize();
     bestText.textContent = best;
     rankText.textContent = currentRank;
     updateSoundButton();
+    updatePurchaseUi();
     updateDifficultyButtons();
     levelText.textContent = currentLevel;
     levelGateText.textContent = "0/" + getLevelGoal();
