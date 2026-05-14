@@ -1725,6 +1725,8 @@
       return window.GravityRunnerNative || null;
     }
 
+    let nativeBannerVisible = false;
+
     function callNativeBridge(methodName, fallback) {
       const bridge = getNativeBridge();
       if (bridge && typeof bridge[methodName] === "function") {
@@ -1806,11 +1808,20 @@
       const hideAds = adsRemoved;
       startAdSlot.classList.toggle("hidden", hideAds || startPanel.classList.contains("hidden"));
       gameOverAdSlot.classList.toggle("hidden", hideAds || gameOverPanel.classList.contains("hidden"));
+      const shouldShowNativeBanner = !hideAds && (!startPanel.classList.contains("hidden") || !gameOverPanel.classList.contains("hidden"));
+      if (shouldShowNativeBanner !== nativeBannerVisible) {
+        nativeBannerVisible = shouldShowNativeBanner;
+        callNativeBridge(shouldShowNativeBanner ? "showBannerAd" : "hideBannerAd", () => {});
+      }
     }
 
     function hideMenuAds() {
       startAdSlot.classList.add("hidden");
       gameOverAdSlot.classList.add("hidden");
+      if (nativeBannerVisible) {
+        nativeBannerVisible = false;
+        callNativeBridge("hideBannerAd", () => {});
+      }
     }
 
     function updatePurchaseUi() {
