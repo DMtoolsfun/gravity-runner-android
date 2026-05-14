@@ -25,6 +25,9 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "GravityRunnerAds";
+    private static final String IAP_TAG = "GravityRunnerIAP";
+    private static final String REMOVE_ADS_PRODUCT_ID = "remove_ads";
+    private static final String SAMSUNG_IAP_MISSING_MESSAGE = "Samsung IAP SDK not installed yet";
     private static final String BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/9214589741";
     private static final String INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
     private static final String REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
@@ -47,6 +50,7 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new GravityRunnerNativeBridge(), "GravityRunnerNative");
         loadInterstitialAd();
         loadRewardedAd();
+        checkRemoveAdsOwnershipOnStartup();
     }
 
     private void setupBannerContainer() {
@@ -193,15 +197,24 @@ public class MainActivity extends BridgeActivity {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
+    private void checkRemoveAdsOwnershipOnStartup() {
+        Log.i(IAP_TAG, SAMSUNG_IAP_MISSING_MESSAGE + "; cannot restore " + REMOVE_ADS_PRODUCT_ID + " ownership on startup");
+    }
+
+    private void showSamsungIapMissingMessage(String action) {
+        Log.w(IAP_TAG, SAMSUNG_IAP_MISSING_MESSAGE + "; " + action + " unavailable for product " + REMOVE_ADS_PRODUCT_ID);
+        showPlaceholderMessage(SAMSUNG_IAP_MISSING_MESSAGE);
+    }
+
     private class GravityRunnerNativeBridge {
         @JavascriptInterface
         public void purchaseRemoveAds() {
-            runOnUiThread(() -> showPlaceholderMessage("Samsung IAP not connected yet"));
+            runOnUiThread(() -> showSamsungIapMissingMessage("purchase"));
         }
 
         @JavascriptInterface
         public void restorePurchases() {
-            runOnUiThread(() -> showPlaceholderMessage("Restore not connected yet"));
+            runOnUiThread(() -> showSamsungIapMissingMessage("restore"));
         }
 
         @JavascriptInterface
