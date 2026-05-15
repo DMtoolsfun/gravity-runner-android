@@ -5,3 +5,9 @@ android/build/
 .gradle/
 local.properties
 .DS_Store
+
+# Android signing secrets
+*.jks
+*.keystore
+android/key.properties
+keystores/
