@@ -581,7 +581,7 @@
     let currentDifficulty = localStorage.getItem("gravityRunnerDifficulty") || "beginner";
     if (!difficultyModes[currentDifficulty]) currentDifficulty = "beginner";
     let soundEnabled = localStorage.getItem("gravityRunnerSound") !== "off";
-    let adsRemoved = localStorage.getItem("gravityRunnerAdsRemoved") === "true";
+    let adsRemoved = false;
     let adEventCounter = Number(localStorage.getItem("gravityRunnerAdEventCounter") || 0);
     let lastTime = 0;
     let shake = 0;
