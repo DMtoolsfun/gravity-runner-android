@@ -198,6 +198,50 @@
       color: #050505;
     }
 
+    .offerOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.78);
+      text-align: center;
+      z-index: 8;
+    }
+
+    .offerOverlay.hidden {
+      display: none;
+    }
+
+    .offerActions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .offerBtn {
+      font-size: 15px;
+      padding: 11px 14px;
+      box-shadow: 4px 4px 0 #6c6c6c;
+    }
+
+    .offerBtn.primary {
+      background: #ffe66d;
+      color: #050505;
+    }
+
+    .offerBtn.secondary {
+      background: #bdfbff;
+      color: #050505;
+    }
+
+    .offerBtn.neutral {
+      background: #f7f7f7;
+      color: #050505;
+    }
+
     .adSlot {
       margin: 12px auto 0;
       width: min(320px, 86vw);
@@ -458,6 +502,20 @@
         </div>
       </div>
     </section>
+
+    <section id="removeAdsOfferPanel" class="offerOverlay hidden" aria-modal="true" role="dialog">
+      <div class="box">
+        <h1 id="removeAdsOfferTitle">Remove Ads</h1>
+        <p class="subtitle" id="removeAdsOfferBody">Choose how you want to play Gravity Runner with ads removed.</p>
+        <div class="offerActions" id="removeAdsOfferActions">
+          <button id="removeAds30DaysBtn" class="offerBtn primary" type="button">30 Days - $3.99</button>
+          <button id="removeAdsLifetimeBtn" class="offerBtn primary" type="button">Forever - $9.99</button>
+          <button id="removeAdsNoThanksBtn" class="offerBtn neutral" type="button">No Thanks</button>
+          <button id="removeAdsDeclineBtn" class="offerBtn neutral hiddenSoft" type="button">Decline</button>
+          <button id="removeAdsTakeDealBtn" class="offerBtn secondary hiddenSoft" type="button">Take Deal</button>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script>
@@ -502,6 +560,14 @@
     const continueAdBtn = document.getElementById("continueAdBtn");
     const passLevelAdBtn = document.getElementById("passLevelAdBtn");
     const gameOverAdSlot = document.getElementById("gameOverAdSlot");
+    const removeAdsOfferPanel = document.getElementById("removeAdsOfferPanel");
+    const removeAdsOfferTitle = document.getElementById("removeAdsOfferTitle");
+    const removeAdsOfferBody = document.getElementById("removeAdsOfferBody");
+    const removeAds30DaysBtn = document.getElementById("removeAds30DaysBtn");
+    const removeAdsLifetimeBtn = document.getElementById("removeAdsLifetimeBtn");
+    const removeAdsNoThanksBtn = document.getElementById("removeAdsNoThanksBtn");
+    const removeAdsDeclineBtn = document.getElementById("removeAdsDeclineBtn");
+    const removeAdsTakeDealBtn = document.getElementById("removeAdsTakeDealBtn");
     const tapHint = document.getElementById("tapHint");
     const messageFlash = document.getElementById("messageFlash");
 
@@ -581,12 +647,17 @@
     let currentDifficulty = localStorage.getItem("gravityRunnerDifficulty") || "beginner";
     if (!difficultyModes[currentDifficulty]) currentDifficulty = "beginner";
     let soundEnabled = localStorage.getItem("gravityRunnerSound") !== "off";
-    let adsRemoved = localStorage.getItem("gravityRunnerAdsRemoved") === "true";
+    let adsRemovedLifetime = localStorage.getItem("gravityRunnerAdsRemoved") === "true";
+    let adsRemovedUntil = Number(localStorage.getItem("gravityRunnerAdsRemovedUntil") || 0);
+    let adsRemoved = areAdsRemoved();
     let adEventCounter = Number(localStorage.getItem("gravityRunnerAdEventCounter") || 0);
     let lastInterstitialAt = Number(localStorage.getItem("gravityRunnerLastInterstitialAt") || 0);
     let rewardedAdCooldownAt = Number(localStorage.getItem("gravityRunnerRewardedAdCooldownAt") || 0);
+    let removeAdsOfferCounter = Number(localStorage.getItem("gravityRunnerRemoveAdsOfferCounter") || 0);
+    let lastRemoveAdsOfferAt = Number(localStorage.getItem("gravityRunnerLastRemoveAdsOfferAt") || 0);
     const interstitialCooldownMs = 90000;
     const rewardedInterstitialBlockMs = 90000;
+    const removeAdsOfferCooldownMs = 300000;
     let rewardedAdCooldown = Date.now() - rewardedAdCooldownAt < rewardedInterstitialBlockMs;
     let lastTime = 0;
     let shake = 0;
@@ -932,6 +1003,7 @@
         gameOverPanel.classList.remove("hidden");
         maybeShowInterstitial("level_complete", currentLevel - 1);
         updateAdSlots();
+        maybeShowRemoveAdsOffer("level_complete", currentLevel - 1);
       }, 500);
       updateStartStats();
     }
@@ -1223,6 +1295,7 @@
         gameOverPanel.classList.remove("hidden");
         maybeShowInterstitial("level_failed", currentLevel);
         updateAdSlots();
+        maybeShowRemoveAdsOffer("level_failed", currentLevel);
       }, 350);
       updateStartStats();
     }
@@ -1531,8 +1604,13 @@
       showMessage(soundEnabled ? "SOUND ON" : "SOUND OFF", 34);
     });
 
-    removeAdsBtn.addEventListener("click", purchaseRemoveAds);
+    removeAdsBtn.addEventListener("click", () => showRemoveAdsOffer(false));
     restorePurchaseBtn.addEventListener("click", restorePurchases);
+    removeAds30DaysBtn.addEventListener("click", purchaseAptoideRemoveAds30Days);
+    removeAdsLifetimeBtn.addEventListener("click", purchaseAptoideRemoveAdsLifetime);
+    removeAdsNoThanksBtn.addEventListener("click", showRemoveAdsDeclineConfirm);
+    removeAdsDeclineBtn.addEventListener("click", hideRemoveAdsOffer);
+    removeAdsTakeDealBtn.addEventListener("click", () => showRemoveAdsOffer(false));
 
     resetProgressBtn.addEventListener("click", () => {
       const confirmed = window.confirm("Reset Gravity Runner progress on this device?");
@@ -1745,24 +1823,128 @@
       fallback();
     }
 
-    function purchaseRemoveAds() {
-      callNativeBridge("purchaseRemoveAds", () => {
+    function purchaseAptoideRemoveAds30Days() {
+      hideRemoveAdsOffer();
+      callNativeBridge("purchaseAptoideRemoveAds30Days", () => {
         showMessage("PURCHASE NEEDS STORE", 70);
       });
     }
 
-    function restorePurchases() {
-      callNativeBridge("restorePurchases", () => {
-        showMessage(adsRemoved ? "ADS REMOVED" : "NO PURCHASE FOUND", 60);
+    function purchaseAptoideRemoveAdsLifetime() {
+      hideRemoveAdsOffer();
+      callNativeBridge("purchaseAptoideRemoveAdsLifetime", () => {
+        callNativeBridge("purchaseRemoveAds", () => {
+          showMessage("PURCHASE NEEDS STORE", 70);
+        });
       });
     }
 
+    function restoreAptoidePurchases() {
+      callNativeBridge("restoreAptoidePurchases", () => {
+        callNativeBridge("restorePurchases", () => {
+          showMessage(areAdsRemoved() ? "ADS REMOVED" : "NO PURCHASE FOUND", 60);
+        });
+      });
+    }
+
+    function restorePurchases() {
+      restoreAptoidePurchases();
+    }
+
+    function areAdsRemoved() {
+      return adsRemovedLifetime || Date.now() < adsRemovedUntil;
+    }
+
+    function syncAdsRemovedState() {
+      if (!adsRemovedLifetime && adsRemovedUntil > 0 && Date.now() >= adsRemovedUntil) {
+        adsRemovedUntil = 0;
+        localStorage.removeItem("gravityRunnerAdsRemovedUntil");
+      }
+      adsRemoved = areAdsRemoved();
+      return adsRemoved;
+    }
+
     function setAdsRemoved(value) {
-      adsRemoved = Boolean(value);
-      localStorage.setItem("gravityRunnerAdsRemoved", String(adsRemoved));
+      adsRemovedLifetime = Boolean(value);
+      if (adsRemovedLifetime) {
+        localStorage.setItem("gravityRunnerAdsRemoved", "true");
+      } else {
+        localStorage.removeItem("gravityRunnerAdsRemoved");
+      }
+      syncAdsRemovedState();
       updatePurchaseUi();
       updateAdSlots();
       showMessage(adsRemoved ? "ADS REMOVED" : "ADS ON", 60);
+    }
+
+    function setAdsRemovedUntil(timestamp) {
+      const expiresAt = Number(timestamp || 0);
+      adsRemovedUntil = Number.isFinite(expiresAt) && expiresAt > Date.now() ? expiresAt : 0;
+      if (adsRemovedUntil > 0) {
+        localStorage.setItem("gravityRunnerAdsRemovedUntil", String(adsRemovedUntil));
+      } else {
+        localStorage.removeItem("gravityRunnerAdsRemovedUntil");
+      }
+      syncAdsRemovedState();
+      updatePurchaseUi();
+      updateAdSlots();
+      showMessage(adsRemoved ? "ADS REMOVED" : "ADS ON", 60);
+    }
+
+    function clearAdsRemoved() {
+      adsRemovedLifetime = false;
+      adsRemovedUntil = 0;
+      localStorage.removeItem("gravityRunnerAdsRemoved");
+      localStorage.removeItem("gravityRunnerAdsRemovedUntil");
+      syncAdsRemovedState();
+      updatePurchaseUi();
+      updateAdSlots();
+      showMessage("ADS ON", 60);
+    }
+
+    function showRemoveAdsOffer(autoShown) {
+      if (adsRemoved || running || paused) return;
+      removeAdsOfferTitle.textContent = "Remove Ads";
+      removeAdsOfferBody.textContent = "Choose how you want to play Gravity Runner with ads removed.";
+      removeAds30DaysBtn.classList.remove("hiddenSoft");
+      removeAdsLifetimeBtn.classList.remove("hiddenSoft");
+      removeAdsNoThanksBtn.classList.remove("hiddenSoft");
+      removeAdsDeclineBtn.classList.add("hiddenSoft");
+      removeAdsTakeDealBtn.classList.add("hiddenSoft");
+      removeAdsOfferPanel.classList.remove("hidden");
+      if (autoShown) {
+        lastRemoveAdsOfferAt = Date.now();
+        localStorage.setItem("gravityRunnerLastRemoveAdsOfferAt", String(lastRemoveAdsOfferAt));
+      }
+    }
+
+    function showRemoveAdsDeclineConfirm() {
+      removeAdsOfferTitle.textContent = "Are you sure?";
+      removeAdsOfferBody.textContent = "Are you sure?";
+      removeAds30DaysBtn.classList.add("hiddenSoft");
+      removeAdsLifetimeBtn.classList.add("hiddenSoft");
+      removeAdsNoThanksBtn.classList.add("hiddenSoft");
+      removeAdsDeclineBtn.classList.remove("hiddenSoft");
+      removeAdsTakeDealBtn.classList.remove("hiddenSoft");
+    }
+
+    function hideRemoveAdsOffer() {
+      removeAdsOfferPanel.classList.add("hidden");
+    }
+
+    function maybeShowRemoveAdsOffer(reason, endedLevel) {
+      syncAdsRemovedState();
+      if (adsRemoved || !isEligibleLevelEndScreen(reason)) return;
+      if (running || paused || (!gameOver && !levelComplete)) return;
+      if (Date.now() - rewardedAdCooldownAt < rewardedInterstitialBlockMs) return;
+      if (Date.now() - lastRemoveAdsOfferAt < removeAdsOfferCooldownMs) return;
+      if (endedLevel < 3) return;
+
+      removeAdsOfferCounter += 1;
+      localStorage.setItem("gravityRunnerRemoveAdsOfferCounter", String(removeAdsOfferCounter));
+      if (removeAdsOfferCounter % 4 !== 0) return;
+
+      showRemoveAdsOffer(true);
     }
 
     function requestRewardedContinue() {
@@ -1822,6 +2004,7 @@
     }
 
     function maybeShowInterstitial(reason, endedLevel) {
+      syncAdsRemovedState();
       if (adsRemoved) {
         logInterstitialSkip("ads removed");
         return;
@@ -1860,6 +2043,7 @@
     }
 
     function updateAdSlots() {
+      syncAdsRemovedState();
       const hideAds = adsRemoved;
       startAdSlot.classList.toggle("hidden", hideAds || startPanel.classList.contains("hidden"));
       gameOverAdSlot.classList.toggle("hidden", hideAds || gameOverPanel.classList.contains("hidden"));
@@ -1880,6 +2064,7 @@
     }
 
     function updatePurchaseUi() {
+      syncAdsRemovedState();
       removeAdsBtn.textContent = adsRemoved ? "Ads Removed" : "Remove Ads";
       removeAdsBtn.classList.toggle("owned", adsRemoved);
       removeAdsBtn.disabled = adsRemoved;
@@ -1889,7 +2074,9 @@
       grantContinue: grantRewardedContinue,
       grantRetries: grantRewardedRetries,
       markInterstitialShown,
-      setAdsRemoved
+      setAdsRemoved,
+      setAdsRemovedUntil,
+      clearAdsRemoved
     };
 
     function updateSoundButton() {

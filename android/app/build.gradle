@@ -3,6 +3,8 @@ apply plugin: 'com.android.application'
 def keystorePropertiesFile = rootProject.file('key.properties')
 def keystoreProperties = new Properties()
 def hasReleaseSigningConfig = keystorePropertiesFile.exists()
+def distributionChannel = (project.findProperty("distributionChannel") ?: "aptoide").toString()
+def aptoidePublicKey = (project.findProperty("aptoidePublicKey") ?: "").toString()
 
 if (hasReleaseSigningConfig) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
@@ -11,12 +13,17 @@ if (hasReleaseSigningConfig) {
 android {
     namespace = "fun.dmtools.gravityrunner"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig = true
+    }
     defaultConfig {
         applicationId "fun.dmtools.gravityrunner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField "String", "DISTRIBUTION_CHANNEL", "\"${distributionChannel}\""
+        buildConfigField "String", "APTOIDE_PUBLIC_KEY", "\"${aptoidePublicKey.replace('\\', '\\\\').replace('\"', '\\\"')}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -56,6 +63,7 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "com.aptoide:android-aptoide-billing:1.3.0"
     implementation "com.google.android.gms:play-services-ads:25.2.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"

@@ -4,12 +4,23 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
-import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
+import com.aptoide.sdk.billing.AptoideBillingClient;
+import com.aptoide.sdk.billing.AptoideBillingClient.BillingResponseCode;
+import com.aptoide.sdk.billing.AptoideBillingClient.ProductType;
+import com.aptoide.sdk.billing.BillingFlowParams;
+import com.aptoide.sdk.billing.BillingResult;
+import com.aptoide.sdk.billing.ConsumeParams;
+import com.aptoide.sdk.billing.ProductDetails;
+import com.aptoide.sdk.billing.Purchase;
+import com.aptoide.sdk.billing.PurchasesUpdatedListener;
+import com.aptoide.sdk.billing.QueryProductDetailsParams;
+import com.aptoide.sdk.billing.QueryPurchasesParams;
+import com.aptoide.sdk.billing.listeners.AptoideBillingClientStateListener;
 import com.getcapacitor.BridgeActivity;
 import com.google.android.gms.ads.AdError;
 import com.google.android.gms.ads.AdRequest;
@@ -30,11 +41,20 @@ import com.samsung.android.sdk.iap.lib.vo.OwnedProductVo;
 import com.samsung.android.sdk.iap.lib.vo.PurchaseVo;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "GravityRunnerAds";
     private static final String IAP_TAG = "GravityRunnerIAP";
+    private static final String APTOIDE_TAG = "GravityRunnerAptoide";
+    private static final String CHANNEL_APTOIDE = "aptoide";
+    private static final String CHANNEL_SAMSUNG = "samsung";
     private static final String REMOVE_ADS_PRODUCT_ID = "remove_ads";
+    private static final String APTOIDE_REMOVE_ADS_30_DAYS_PRODUCT_ID = "remove_ads_30_days";
+    private static final String APTOIDE_REMOVE_ADS_LIFETIME_PRODUCT_ID = "remove_ads_lifetime";
+    private static final long APTOIDE_REMOVE_ADS_30_DAYS_MS = 30L * 24L * 60L * 60L * 1000L;
     private static final String BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/9214589741";
     private static final String INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
     private static final String REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
@@ -48,6 +68,9 @@ public class MainActivity extends BridgeActivity {
     private boolean isLoadingInterstitial;
     private boolean isLoadingRewarded;
     private IapHelper samsungIapHelper;
+    private AptoideBillingClient aptoideBillingClient;
+    private boolean aptoideBillingReady;
+    private final Map<String, ProductDetails> aptoideProductDetails = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,7 +81,19 @@ public class MainActivity extends BridgeActivity {
         getBridge().getWebView().addJavascriptInterface(new GravityRunnerNativeBridge(), "GravityRunnerNative");
         loadInterstitialAd();
         loadRewardedAd();
-        checkRemoveAdsOwnershipOnStartup();
+        if (isAptoideChannel()) {
+            initializeAptoideBilling();
+        } else {
+            checkRemoveAdsOwnershipOnStartup();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (aptoideBillingClient != null) {
+            aptoideBillingClient.endConnection();
+        }
+        super.onDestroy();
     }
 
     private void setupBannerContainer() {
@@ -205,6 +240,281 @@ public class MainActivity extends BridgeActivity {
         webView.post(() -> webView.evaluateJavascript(javascript, null));
     }
 
+    private boolean isAptoideChannel() {
+        return CHANNEL_APTOIDE.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
+    }
+
+    private boolean isSamsungChannel() {
+        return CHANNEL_SAMSUNG.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
+    }
+
+    private void initializeAptoideBilling() {
+        if (BuildConfig.APTOIDE_PUBLIC_KEY == null || BuildConfig.APTOIDE_PUBLIC_KEY.trim().isEmpty()) {
+            Log.w(APTOIDE_TAG, "Aptoide public key is not configured; billing remains unavailable and ads stay enabled.");
+            return;
+        }
+
+        try {
+            PurchasesUpdatedListener purchasesUpdatedListener = this::handleAptoidePurchasesUpdated;
+            aptoideBillingClient = AptoideBillingClient.newBuilder(this)
+                .setListener(purchasesUpdatedListener)
+                .setPublicKey(BuildConfig.APTOIDE_PUBLIC_KEY)
+                .build();
+            aptoideBillingClient.startConnection(new AptoideBillingClientStateListener() {
+                @Override
+                public void onBillingSetupFinished(BillingResult billingResult) {
+                    if (!isAptoideSuccess(billingResult)) {
+                        Log.w(APTOIDE_TAG, "Aptoide billing setup failed: " + describeAptoideResult(billingResult));
+                        aptoideBillingReady = false;
+                        return;
+                    }
+
+                    aptoideBillingReady = true;
+                    Log.i(APTOIDE_TAG, "Aptoide billing ready");
+                    queryAptoideProducts();
+                    restoreAptoidePurchases();
+                }
+
+                @Override
+                public void onBillingServiceDisconnected() {
+                    aptoideBillingReady = false;
+                    Log.w(APTOIDE_TAG, "Aptoide billing disconnected");
+                }
+            });
+        } catch (RuntimeException exception) {
+            aptoideBillingReady = false;
+            Log.w(APTOIDE_TAG, "Aptoide billing initialization failed", exception);
+        }
+    }
+
+    private void queryAptoideProducts() {
+        if (!canUseAptoideBilling("query products")) {
+            return;
+        }
+
+        QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+            .setProductList(List.of(
+                QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(APTOIDE_REMOVE_ADS_30_DAYS_PRODUCT_ID)
+                    .setProductType(ProductType.INAPP)
+                    .build(),
+                QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(APTOIDE_REMOVE_ADS_LIFETIME_PRODUCT_ID)
+                    .setProductType(ProductType.INAPP)
+                    .build()
+            ))
+            .build();
+
+        try {
+            aptoideBillingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
+                if (!isAptoideSuccess(billingResult) || productDetailsResult == null) {
+                    Log.w(APTOIDE_TAG, "Aptoide product query failed: " + describeAptoideResult(billingResult));
+                    return;
+                }
+
+                aptoideProductDetails.clear();
+                for (ProductDetails productDetails : productDetailsResult.getProductDetailsList()) {
+                    if (productDetails != null) {
+                        aptoideProductDetails.put(productDetails.getProductId(), productDetails);
+                    }
+                }
+                Log.i(APTOIDE_TAG, "Aptoide products available: " + aptoideProductDetails.keySet());
+            });
+        } catch (RuntimeException exception) {
+            Log.w(APTOIDE_TAG, "Aptoide product query failed", exception);
+        }
+    }
+
+    private void purchaseAptoideRemoveAds30Days() {
+        if (isSamsungChannel()) {
+            purchaseRemoveAds();
+            return;
+        }
+
+        startAptoidePurchase(APTOIDE_REMOVE_ADS_30_DAYS_PRODUCT_ID);
+    }
+
+    private void purchaseAptoideRemoveAdsLifetime() {
+        if (isSamsungChannel()) {
+            purchaseRemoveAds();
+            return;
+        }
+
+        startAptoidePurchase(APTOIDE_REMOVE_ADS_LIFETIME_PRODUCT_ID);
+    }
+
+    private void startAptoidePurchase(String productId) {
+        if (!isAptoideChannel()) {
+            Log.w(APTOIDE_TAG, "Aptoide purchase requested outside Aptoide channel");
+            showIapMessage("Purchase unavailable");
+            return;
+        }
+        if (!canUseAptoideBilling("purchase")) {
+            showIapMessage("Purchase unavailable");
+            return;
+        }
+
+        ProductDetails productDetails = aptoideProductDetails.get(productId);
+        if (productDetails == null) {
+            Log.w(APTOIDE_TAG, "Aptoide product details unavailable for " + productId);
+            queryAptoideProducts();
+            showIapMessage("Purchase unavailable");
+            return;
+        }
+
+        BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
+            .setProductDetailsParamsList(List.of(
+                BillingFlowParams.ProductDetailsParams.newBuilder()
+                    .setProductDetails(productDetails)
+                    .build()
+            ))
+            .setDeveloperPayload("gravity-runner:" + productId)
+            .build();
+
+        Thread thread = new Thread(() -> {
+            BillingResult billingResult = aptoideBillingClient.launchBillingFlow(MainActivity.this, billingFlowParams);
+            runOnUiThread(() -> {
+                if (!isAptoideSuccess(billingResult)) {
+                    Log.w(APTOIDE_TAG, "Aptoide purchase flow failed for " + productId + ": " + describeAptoideResult(billingResult));
+                    showIapMessage("Purchase unavailable");
+                }
+            });
+        });
+        thread.start();
+    }
+
+    private void restoreAptoidePurchases() {
+        if (isSamsungChannel()) {
+            restorePurchases();
+            return;
+        }
+
+        if (!isAptoideChannel()) {
+            Log.w(APTOIDE_TAG, "Aptoide restore requested outside Aptoide channel");
+            return;
+        }
+        if (!canUseAptoideBilling("restore")) {
+            showIapMessage("No purchase found");
+            return;
+        }
+
+        try {
+            aptoideBillingClient.queryPurchasesAsync(
+                QueryPurchasesParams.newBuilder()
+                    .setProductType(ProductType.INAPP)
+                    .build(),
+                (billingResult, purchases) -> {
+                    if (!isAptoideSuccess(billingResult)) {
+                        Log.w(APTOIDE_TAG, "Aptoide restore query failed: " + describeAptoideResult(billingResult));
+                        showIapMessage("No purchase found");
+                        return;
+                    }
+
+                    boolean restored = false;
+                    if (purchases != null) {
+                        for (Purchase purchase : purchases) {
+                            restored |= processAptoidePurchase(purchase, "restore");
+                        }
+                    }
+
+                    if (!restored) {
+                        Log.i(APTOIDE_TAG, "No Aptoide remove ads ownership found");
+                        showIapMessage("No purchase found");
+                    }
+                }
+            );
+        } catch (RuntimeException exception) {
+            Log.w(APTOIDE_TAG, "Aptoide restore failed", exception);
+            showIapMessage("No purchase found");
+        }
+    }
+
+    private void handleAptoidePurchasesUpdated(BillingResult billingResult, List<Purchase> purchases) {
+        if (!isAptoideSuccess(billingResult)) {
+            Log.w(APTOIDE_TAG, "Aptoide purchase update failed or canceled: " + describeAptoideResult(billingResult));
+            return;
+        }
+        if (purchases == null || purchases.isEmpty()) {
+            Log.w(APTOIDE_TAG, "Aptoide purchase update returned no purchases");
+            return;
+        }
+
+        for (Purchase purchase : purchases) {
+            processAptoidePurchase(purchase, "purchase");
+        }
+    }
+
+    private boolean processAptoidePurchase(Purchase purchase, String source) {
+        if (purchase == null || purchase.getPurchaseState() != 0 || purchase.getProducts() == null) {
+            return false;
+        }
+
+        boolean handled = false;
+        for (String productId : purchase.getProducts()) {
+            if (APTOIDE_REMOVE_ADS_LIFETIME_PRODUCT_ID.equals(productId)) {
+                Log.i(APTOIDE_TAG, "Aptoide lifetime ownership confirmed from " + source);
+                evaluateJavascriptSafely("window.GravityRunnerRewards && window.GravityRunnerRewards.setAdsRemoved(true)");
+                handled = true;
+            } else if (APTOIDE_REMOVE_ADS_30_DAYS_PRODUCT_ID.equals(productId)) {
+                long expiresAt = System.currentTimeMillis() + APTOIDE_REMOVE_ADS_30_DAYS_MS;
+                Log.i(APTOIDE_TAG, "Aptoide 30-day ownership confirmed from " + source + " until " + expiresAt);
+                evaluateJavascriptSafely("window.GravityRunnerRewards && window.GravityRunnerRewards.setAdsRemovedUntil(" + expiresAt + ")");
+                consumeAptoidePurchase(purchase, productId);
+                handled = true;
+            }
+        }
+
+        return handled;
+    }
+
+    private void consumeAptoidePurchase(Purchase purchase, String productId) {
+        if (purchase.getPurchaseToken() == null || purchase.getPurchaseToken().trim().isEmpty()) {
+            Log.w(APTOIDE_TAG, "Cannot consume Aptoide purchase without token for " + productId);
+            return;
+        }
+
+        // Aptoide Connect must define remove_ads_30_days and remove_ads_lifetime before real testing.
+        // The 30-day pass is consumed after delivery so it can be bought again after expiration.
+        // Lifetime is intentionally not consumed here so it remains restorable and non-repeatable.
+        try {
+            aptoideBillingClient.consumeAsync(
+                ConsumeParams.newBuilder()
+                    .setPurchaseToken(purchase.getPurchaseToken())
+                    .build(),
+                (billingResult, purchaseToken) -> {
+                    if (isAptoideSuccess(billingResult)) {
+                        Log.i(APTOIDE_TAG, "Aptoide purchase consumed for " + productId);
+                    } else {
+                        Log.w(APTOIDE_TAG, "Aptoide consume failed for " + productId + ": " + describeAptoideResult(billingResult));
+                    }
+                }
+            );
+        } catch (RuntimeException exception) {
+            Log.w(APTOIDE_TAG, "Aptoide consume failed for " + productId, exception);
+        }
+    }
+
+    private boolean canUseAptoideBilling(String operation) {
+        if (aptoideBillingClient == null || !aptoideBillingReady || !aptoideBillingClient.isReady()) {
+            Log.w(APTOIDE_TAG, "Aptoide billing unavailable for " + operation);
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean isAptoideSuccess(BillingResult billingResult) {
+        return billingResult != null && billingResult.getResponseCode() == BillingResponseCode.OK;
+    }
+
+    private String describeAptoideResult(BillingResult billingResult) {
+        if (billingResult == null) {
+            return "null result";
+        }
+
+        return "responseCode=" + billingResult.getResponseCode();
+    }
+
     private IapHelper getSamsungIapHelper() {
         if (samsungIapHelper == null) {
             samsungIapHelper = IapHelper.getInstance(this);
@@ -221,6 +531,16 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void purchaseRemoveAds() {
+        if (isAptoideChannel()) {
+            purchaseAptoideRemoveAdsLifetime();
+            return;
+        }
+        if (!isSamsungChannel()) {
+            Log.w(IAP_TAG, "Samsung purchase requested outside Samsung channel: " + BuildConfig.DISTRIBUTION_CHANNEL);
+            showIapMessage("Purchase unavailable");
+            return;
+        }
+
         try {
             boolean started = getSamsungIapHelper().startPayment(REMOVE_ADS_PRODUCT_ID, this::handlePaymentResult);
             if (!started) {
@@ -234,6 +554,16 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void restorePurchases() {
+        if (isAptoideChannel()) {
+            restoreAptoidePurchases();
+            return;
+        }
+        if (!isSamsungChannel()) {
+            Log.w(IAP_TAG, "Samsung restore requested outside Samsung channel: " + BuildConfig.DISTRIBUTION_CHANNEL);
+            showIapMessage("No purchase found");
+            return;
+        }
+
         queryRemoveAdsOwnership("restore");
     }
 
@@ -377,7 +707,7 @@ public class MainActivity extends BridgeActivity {
 
     private void showIapMessage(String message) {
         Log.d(IAP_TAG, message);
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
     }
 
     private class GravityRunnerNativeBridge {
@@ -389,6 +719,21 @@ public class MainActivity extends BridgeActivity {
         @JavascriptInterface
         public void restorePurchases() {
             runOnUiThread(MainActivity.this::restorePurchases);
+        }
+
+        @JavascriptInterface
+        public void purchaseAptoideRemoveAds30Days() {
+            runOnUiThread(MainActivity.this::purchaseAptoideRemoveAds30Days);
+        }
+
+        @JavascriptInterface
+        public void purchaseAptoideRemoveAdsLifetime() {
+            runOnUiThread(MainActivity.this::purchaseAptoideRemoveAdsLifetime);
+        }
+
+        @JavascriptInterface
+        public void restoreAptoidePurchases() {
+            runOnUiThread(MainActivity.this::restoreAptoidePurchases);
         }
 
         @JavascriptInterface
