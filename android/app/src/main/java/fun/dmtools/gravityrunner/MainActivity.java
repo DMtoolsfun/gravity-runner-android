@@ -125,6 +125,11 @@ public class MainActivity extends BridgeActivity {
                     }
 
                     @Override
+                    public void onAdShowedFullScreenContent() {
+                        evaluateJavascriptSafely("window.GravityRunnerRewards && window.GravityRunnerRewards.markInterstitialShown()");
+                    }
+
+                    @Override
                     public void onAdFailedToShowFullScreenContent(AdError adError) {
                         Log.w(TAG, "Interstitial failed to show: " + adError.getMessage());
                         interstitialAd = null;

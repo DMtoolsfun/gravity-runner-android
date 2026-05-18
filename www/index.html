@@ -581,8 +581,13 @@
     let currentDifficulty = localStorage.getItem("gravityRunnerDifficulty") || "beginner";
     if (!difficultyModes[currentDifficulty]) currentDifficulty = "beginner";
     let soundEnabled = localStorage.getItem("gravityRunnerSound") !== "off";
-    let adsRemoved = false;
+    let adsRemoved = localStorage.getItem("gravityRunnerAdsRemoved") === "true";
     let adEventCounter = Number(localStorage.getItem("gravityRunnerAdEventCounter") || 0);
+    let lastInterstitialAt = Number(localStorage.getItem("gravityRunnerLastInterstitialAt") || 0);
+    let rewardedAdCooldownAt = Number(localStorage.getItem("gravityRunnerRewardedAdCooldownAt") || 0);
+    const interstitialCooldownMs = 90000;
+    const rewardedInterstitialBlockMs = 90000;
+    let rewardedAdCooldown = Date.now() - rewardedAdCooldownAt < rewardedInterstitialBlockMs;
     let lastTime = 0;
     let shake = 0;
     let currentRank = "ROOKIE";
@@ -921,14 +926,14 @@
       gameOverTitle.textContent = "Level Complete";
       restartBtn.textContent = "Next Level";
       adActionWrap.classList.add("hiddenSoft");
-      maybeShowInterstitial("level_complete");
-      updateAdSlots();
       bestText.textContent = best;
-      updateStartStats();
 
       setTimeout(() => {
         gameOverPanel.classList.remove("hidden");
+        maybeShowInterstitial("level_complete", currentLevel - 1);
+        updateAdSlots();
       }, 500);
+      updateStartStats();
     }
 
     function updatePowerTimers(scaled) {
@@ -1212,14 +1217,14 @@
       rewardPromptText.textContent = getRewardPromptText();
       restartBtn.textContent = getRetryButtonText();
       updateRewardButtons();
-      maybeShowInterstitial("level_failed");
-      updateAdSlots();
       bestText.textContent = best;
-      updateStartStats();
 
       setTimeout(() => {
         gameOverPanel.classList.remove("hidden");
+        maybeShowInterstitial("level_failed", currentLevel);
+        updateAdSlots();
       }, 350);
+      updateStartStats();
     }
 
     function draw() {
@@ -1772,8 +1777,15 @@
       });
     }
 
+    function markRewardedAdCompleted() {
+      rewardedAdCooldownAt = Date.now();
+      rewardedAdCooldown = true;
+      localStorage.setItem("gravityRunnerRewardedAdCooldownAt", String(rewardedAdCooldownAt));
+    }
+
     function grantRewardedContinue() {
       if (!gameOver) return;
+      markRewardedAdCompleted();
       lives = 1;
       gameOver = false;
       running = true;
@@ -1781,11 +1793,13 @@
       invincibleTimer = settings.invincibleDuration;
       gameOverPanel.classList.add("hidden");
       pauseBtn.classList.remove("hidden");
+      hideMenuAds();
       showMessage("CONTINUE", 54);
       lastTime = performance.now();
     }
 
     function grantRewardedRetries() {
+      markRewardedAdCompleted();
       adRetryCredits += settings.adRetryGrant;
       localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
       showMessage("+" + settings.adRetryGrant + " RETRIES", 62);
@@ -1794,11 +1808,52 @@
       updateRewardButtons();
     }
 
-    function maybeShowInterstitial(reason) {
-      if (adsRemoved) return;
+    function markInterstitialShown() {
+      lastInterstitialAt = Date.now();
+      localStorage.setItem("gravityRunnerLastInterstitialAt", String(lastInterstitialAt));
+    }
+
+    function logInterstitialSkip(reason) {
+      console.log("Interstitial skipped:", reason);
+    }
+
+    function isEligibleLevelEndScreen(reason) {
+      return (reason === "level_complete" || reason === "level_failed") && !gameOverPanel.classList.contains("hidden");
+    }
+
+    function maybeShowInterstitial(reason, endedLevel) {
+      if (adsRemoved) {
+        logInterstitialSkip("ads removed");
+        return;
+      }
+      if (!isEligibleLevelEndScreen(reason)) {
+        logInterstitialSkip("not eligible screen");
+        return;
+      }
+      if (running || paused || (!gameOver && !levelComplete)) {
+        logInterstitialSkip("not eligible screen");
+        return;
+      }
+      if (endedLevel < 4) {
+        logInterstitialSkip("too early");
+        return;
+      }
+
       adEventCounter += 1;
       localStorage.setItem("gravityRunnerAdEventCounter", String(adEventCounter));
       if (adEventCounter % 3 !== 0) return;
+
+      const now = Date.now();
+      if (now - lastInterstitialAt < interstitialCooldownMs) {
+        logInterstitialSkip("cooldown active");
+        return;
+      }
+      rewardedAdCooldown = now - rewardedAdCooldownAt < rewardedInterstitialBlockMs;
+      if (rewardedAdCooldown) {
+        logInterstitialSkip("rewarded recently watched");
+        return;
+      }
+
       callNativeBridge("showInterstitialAd", () => {
         console.log("Interstitial ad placeholder:", reason);
       });
@@ -1833,6 +1888,7 @@
     window.GravityRunnerRewards = {
       grantContinue: grantRewardedContinue,
       grantRetries: grantRewardedRetries,
+      markInterstitialShown,
       setAdsRemoved
     };
 
