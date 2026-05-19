@@ -55,9 +55,10 @@ public class MainActivity extends BridgeActivity {
     private static final String APTOIDE_REMOVE_ADS_30_DAYS_PRODUCT_ID = "remove_ads_30_days";
     private static final String APTOIDE_REMOVE_ADS_LIFETIME_PRODUCT_ID = "remove_ads_lifetime";
     private static final long APTOIDE_REMOVE_ADS_30_DAYS_MS = 30L * 24L * 60L * 60L * 1000L;
-    private static final String BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/9214589741";
-    private static final String INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
-    private static final String REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
+    // AdMob ad unit IDs come from Gradle build types: debug uses test IDs, release uses production IDs.
+    private static final String BANNER_AD_UNIT_ID = BuildConfig.ADMOB_BANNER_ID;
+    private static final String INTERSTITIAL_AD_UNIT_ID = BuildConfig.ADMOB_INTERSTITIAL_ID;
+    private static final String REWARDED_AD_UNIT_ID = BuildConfig.ADMOB_REWARDED_ID;
     private static final int BANNER_NAV_FALLBACK_MARGIN_DP = 64;
     private static final int BANNER_NAV_EXTRA_MARGIN_DP = 12;
 

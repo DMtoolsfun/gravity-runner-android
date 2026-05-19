@@ -6,6 +6,16 @@ def hasReleaseSigningConfig = keystorePropertiesFile.exists()
 def distributionChannel = (project.findProperty("distributionChannel") ?: "aptoide").toString()
 def aptoidePublicKey = (project.findProperty("aptoidePublicKey") ?: "").toString()
 
+// Debug builds use Google's public AdMob test IDs. Release builds use Gravity Runner production IDs.
+def admobDebugApplicationId = "ca-app-pub-3940256099942544~3347511713"
+def admobDebugBannerId = "ca-app-pub-3940256099942544/9214589741"
+def admobDebugInterstitialId = "ca-app-pub-3940256099942544/1033173712"
+def admobDebugRewardedId = "ca-app-pub-3940256099942544/5224354917"
+def admobReleaseApplicationId = "ca-app-pub-7088647938932607~2666225197"
+def admobReleaseBannerId = "ca-app-pub-7088647938932607/1816177959"
+def admobReleaseInterstitialId = "ca-app-pub-7088647938932607/2860146409"
+def admobReleaseRewardedId = "ca-app-pub-7088647938932607/1675743002"
+
 if (hasReleaseSigningConfig) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
@@ -42,10 +52,20 @@ android {
         }
     }
     buildTypes {
+        debug {
+            manifestPlaceholders = [admobApplicationId: admobDebugApplicationId]
+            buildConfigField "String", "ADMOB_BANNER_ID", "\"${admobDebugBannerId}\""
+            buildConfigField "String", "ADMOB_INTERSTITIAL_ID", "\"${admobDebugInterstitialId}\""
+            buildConfigField "String", "ADMOB_REWARDED_ID", "\"${admobDebugRewardedId}\""
+        }
         release {
             if (hasReleaseSigningConfig) {
                 signingConfig signingConfigs.release
             }
+            manifestPlaceholders = [admobApplicationId: admobReleaseApplicationId]
+            buildConfigField "String", "ADMOB_BANNER_ID", "\"${admobReleaseBannerId}\""
+            buildConfigField "String", "ADMOB_INTERSTITIAL_ID", "\"${admobReleaseInterstitialId}\""
+            buildConfigField "String", "ADMOB_REWARDED_ID", "\"${admobReleaseRewardedId}\""
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
