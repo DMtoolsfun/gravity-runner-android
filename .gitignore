@@ -5,6 +5,9 @@ android/build/
 .gradle/
 local.properties
 .DS_Store
+.env
+*.env
+aptoide-secrets.ps1
 
 # Android signing secrets
 *.jks
