@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Gravity Runner</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #050505;
+      font-family: "Courier New", monospace;
+      color: #f7f7f7;
+      touch-action: none;
+      user-select: none;
+    }
+
+    #gameWrap {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
+        #050505;
+      background-size: 22px 22px;
+    }
+
+    canvas {
+      width: 100vw;
+      height: 100vh;
+      image-rendering: pixelated;
+      display: block;
+    }
+
+    .panel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.72);
+      text-align: center;
+      z-index: 5;
+    }
+
+    .panel.hidden {
+      display: none;
+    }
+
+    .box {
+      border: 4px solid #f7f7f7;
+      background: #080808;
+      padding: 24px;
+      width: min(92vw, 520px);
+      box-shadow: 8px 8px 0 #333;
+    }
+
+    h1 {
+      font-size: clamp(32px, 8vw, 60px);
+      letter-spacing: 2px;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      color: #bdfbff;
+      font-size: clamp(14px, 3vw, 19px);
+      line-height: 1.45;
+      margin-bottom: 18px;
+    }
+
+    .instructions {
+      font-size: clamp(13px, 3vw, 17px);
+      color: #ddd;
+      line-height: 1.5;
+      margin: 16px 0 20px;
+    }
+
+    .legend {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0 20px;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .rewardPill {
+      border: 2px solid #f7f7f7;
+      padding: 5px 8px;
+      background: #111;
+      box-shadow: 3px 3px 0 #333;
+      white-space: nowrap;
+    }
+
+    .difficultySelect {
+      margin: 12px 0 18px;
+    }
+
+    .difficultyTitle {
+      font-size: 13px;
+      color: #bdfbff;
+      font-weight: 900;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .difficultyButtons {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .difficultyBtn {
+      font-size: 14px;
+      padding: 8px 10px;
+      box-shadow: 3px 3px 0 #6c6c6c;
+    }
+
+    .difficultyBtn.active {
+      background: #bdfbff;
+      color: #050505;
+    }
+
+    .versionTag {
+      display: inline-block;
+      border: 2px solid #bdfbff;
+      color: #bdfbff;
+      padding: 5px 8px;
+      font-size: 12px;
+      font-weight: 900;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      background: #101010;
+    }
+
+    .utilityRow,
+    .adActions {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 16px;
+    }
+
+    .utilityBtn,
+    .adBtn {
+      font-size: 13px;
+      padding: 9px 11px;
+      box-shadow: 3px 3px 0 #6c6c6c;
+    }
+
+    .utilityBtn.danger {
+      background: #ff4d4d;
+      color: #050505;
+    }
+
+    .adBtn {
+      background: #ffe66d;
+      color: #050505;
+    }
+
+    .releaseNote {
+      border-top: 2px solid #333;
+      border-bottom: 2px solid #333;
+      padding: 10px 0;
+      color: #bdfbff;
+      font-size: 13px;
+    }
+
+    .purchaseBtn {
+      background: #ffe66d;
+      color: #050505;
+    }
+
+    .purchaseBtn.owned {
+      background: #4dabff;
+      color: #050505;
+    }
+
+    .offerOverlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.78);
+      text-align: center;
+      z-index: 8;
+    }
+
+    .offerOverlay.hidden {
+      display: none;
+    }
+
+    .offerActions {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .offerBtn {
+      font-size: 15px;
+      padding: 11px 14px;
+      box-shadow: 4px 4px 0 #6c6c6c;
+    }
+
+    .offerBtn.primary {
+      background: #ffe66d;
+      color: #050505;
+    }
+
+    .offerBtn.secondary {
+      background: #bdfbff;
+      color: #050505;
+    }
+
+    .offerBtn.neutral {
+      background: #f7f7f7;
+      color: #050505;
+    }
+
+    .adSlot {
+      margin: 12px auto 0;
+      width: min(320px, 86vw);
+      min-height: 38px;
+      border: 2px dashed #555;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #777;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .adSlot.hidden {
+      display: none;
+    }
+
+    .hiddenSoft {
+      display: none;
+    }
+
+    .yellow { color: #ffe66d; }
+    .blue { color: #4dabff; }
+    .orange { color: #ff9f1c; }
+    .red { color: #ff4d4d; }
+
+    button {
+      font-family: "Courier New", monospace;
+      font-weight: 900;
+      font-size: 20px;
+      text-transform: uppercase;
+      color: #050505;
+      background: #f7f7f7;
+      border: 0;
+      padding: 13px 24px;
+      cursor: pointer;
+      box-shadow: 5px 5px 0 #6c6c6c;
+    }
+
+    button:active {
+      transform: translate(3px, 3px);
+      box-shadow: 2px 2px 0 #6c6c6c;
+    }
+
+    #hud {
+      position: absolute;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      z-index: 2;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      pointer-events: none;
+      text-shadow: 3px 3px 0 #000;
+    }
+
+    .hudBlock {
+      font-size: clamp(16px, 4vw, 28px);
+      font-weight: 900;
+      color: #fff;
+    }
+
+    .hudSmall {
+      font-size: clamp(11px, 2.5vw, 15px);
+      color: #bdfbff;
+      margin-top: 3px;
+    }
+
+    #tapHint {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      z-index: 2;
+      pointer-events: none;
+      text-align: center;
+      text-shadow: 2px 2px 0 #000;
+    }
+
+
+    #powerBarWrap {
+      position: absolute;
+      top: 74px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(260px, 58vw);
+      height: 12px;
+      border: 2px solid #f7f7f7;
+      background: #050505;
+      z-index: 2;
+      box-shadow: 3px 3px 0 #000;
+      pointer-events: none;
+    }
+
+    #powerBarWrap.hidden {
+      display: none;
+    }
+
+    #powerBar {
+      width: 100%;
+      height: 100%;
+      background: #bdfbff;
+      transform-origin: left center;
+      transform: scaleX(1);
+    }
+
+    #messageFlash {
+      position: absolute;
+      top: 42%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 3;
+      pointer-events: none;
+      font-size: clamp(20px, 6vw, 44px);
+      font-weight: 900;
+      text-align: center;
+      text-transform: uppercase;
+      color: #bdfbff;
+      text-shadow: 4px 4px 0 #000;
+      opacity: 0;
+      transition: opacity 120ms linear;
+      white-space: nowrap;
+    }
+
+    #messageFlash.show {
+      opacity: 1;
+    }
+
+    #pauseBtn {
+      position: absolute;
+      top: 52px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 4;
+      font-size: 13px;
+      padding: 8px 12px;
+      box-shadow: 3px 3px 0 #000;
+      pointer-events: auto;
+    }
+
+    #pauseBtn.hidden {
+      display: none;
+    }
+
+    @media (max-height: 520px) {
+      .box {
+        padding: 14px;
+      }
+      h1 {
+        margin-bottom: 6px;
+      }
+      .instructions {
+        margin: 8px 0 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="gameWrap">
+    <canvas id="game"></canvas>
+
+    <div id="hud">
+      <div>
+        <div class="hudBlock">SCORE <span id="scoreText">0</span></div>
+        <div class="hudSmall">LVL <span id="levelText">1</span> / GATES <span id="levelGateText">0/10</span></div>
+        <div class="hudSmall">LIVES <span id="livesText">3</span></div>
+        <div class="hudSmall">POWER <span id="powerText">NONE</span></div>
+      </div>
+      <div style="text-align:right;">
+        <div class="hudBlock">BEST <span id="bestText">0</span></div>
+        <div class="hudSmall">RANK <span id="rankText">ROOKIE</span></div>
+        <div class="hudSmall">MODE <span id="difficultyText">BEGINNER</span></div>
+      </div>
+    </div>
+
+    <div id="powerBarWrap" class="hidden"><div id="powerBar"></div></div>
+    <button id="pauseBtn" class="hidden" type="button">Pause</button>
+    <div id="tapHint">TAP + HOLD ANYWHERE</div>
+    <div id="messageFlash" aria-live="polite"></div>
+
+    <section id="startPanel" class="panel">
+      <div class="box">
+        <h1>Gravity Runner</h1>
+        <p class="subtitle">A tiny Atari-style endless maze runner.</p>
+        <div class="versionTag" id="versionLabel">v0.1 Itch Preview</div>
+        <p class="instructions" id="startStatsText">Level: 1 / Best: 0 / Runs: 0</p>
+        <div class="difficultySelect" aria-label="Difficulty selection">
+          <div class="difficultyTitle">Choose Speed</div>
+          <div class="difficultyButtons">
+            <button class="difficultyBtn active" type="button" data-difficulty="beginner">Beginner</button>
+            <button class="difficultyBtn" type="button" data-difficulty="intermediate">Intermediate</button>
+            <button class="difficultyBtn" type="button" data-difficulty="expert">Expert</button>
+          </div>
+        </div>
+        <div class="utilityRow" aria-label="Game controls">
+          <button id="soundToggleBtn" class="utilityBtn" type="button">Sound: On</button>
+          <button id="resetProgressBtn" class="utilityBtn danger" type="button">Reset Progress</button>
+        </div>
+        <p class="instructions">
+          Hold the screen, mouse, or SPACEBAR to float up.<br />
+          Let go to drop.<br />
+          Clear each level by surviving the required gates. Lose all lives and retry that same level.
+        </p>
+        <div class="legend" aria-label="Power ball guide">
+          <span class="rewardPill yellow">+ POINTS</span>
+          <span class="rewardPill blue">S SLOW</span>
+          <span class="rewardPill orange">B BREAK</span>
+          <span class="rewardPill red">L LIFE</span>
+        </div>
+        <button id="startBtn">Start</button>
+      </div>
+    </section>
+
+    <section id="gameOverPanel" class="panel hidden">
+      <div class="box">
+        <h1 id="gameOverTitle">Game Over</h1>
+        <p class="subtitle" id="finalScoreText">Score: 0</p>
+        <p class="instructions" id="finalBestText">Best: 0</p>
+        <p class="instructions" id="finalStatsText">Gates: 0 / Best Streak: 0</p>
+        <p class="instructions" id="finalRankText">Rank: Rookie</p>
+        <div class="difficultySelect" aria-label="Difficulty selection after level">
+          <div class="difficultyTitle">Change Speed: Starts Over at Level 1</div>
+          <div class="difficultyButtons">
+            <button class="difficultyBtn active" type="button" data-difficulty="beginner">Beginner</button>
+            <button class="difficultyBtn" type="button" data-difficulty="intermediate">Intermediate</button>
+            <button class="difficultyBtn" type="button" data-difficulty="expert">Expert</button>
+          </div>
+        </div>
+        <button id="restartBtn">Retry Level</button>
+      </div>
+    </section>
+
+    <section id="pausePanel" class="panel hidden">
+      <div class="box">
+        <h1>Paused</h1>
+        <p class="subtitle">Take a break. Your level is waiting.</p>
+        <p class="instructions" id="pauseStatsText">Level 1 / Gates 0/10</p>
+        <div class="utilityRow">
+          <button id="resumeBtn" class="utilityBtn" type="button">Resume</button>
+          <button id="restartLevelBtn" class="utilityBtn" type="button">Restart Level</button>
+          <button id="quitToMenuBtn" class="utilityBtn danger" type="button">Menu</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const startPanel = document.getElementById("startPanel");
+    const gameOverPanel = document.getElementById("gameOverPanel");
+    const pausePanel = document.getElementById("pausePanel");
+    const startBtn = document.getElementById("startBtn");
+    const restartBtn = document.getElementById("restartBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const resumeBtn = document.getElementById("resumeBtn");
+    const restartLevelBtn = document.getElementById("restartLevelBtn");
+    const quitToMenuBtn = document.getElementById("quitToMenuBtn");
+    const scoreText = document.getElementById("scoreText");
+    const bestText = document.getElementById("bestText");
+    const rankText = document.getElementById("rankText");
+    const difficultyText = document.getElementById("difficultyText");
+    const difficultyButtons = Array.from(document.querySelectorAll(".difficultyBtn"));
+    const levelText = document.getElementById("levelText");
+    const levelGateText = document.getElementById("levelGateText");
+    const livesText = document.getElementById("livesText");
+    const powerText = document.getElementById("powerText");
+    const powerBarWrap = document.getElementById("powerBarWrap");
+    const powerBar = document.getElementById("powerBar");
+    const startStatsText = document.getElementById("startStatsText");
+    const versionLabel = document.getElementById("versionLabel");
+    const soundToggleBtn = document.getElementById("soundToggleBtn");
+    const resetProgressBtn = document.getElementById("resetProgressBtn");
+    const gameOverTitle = document.getElementById("gameOverTitle");
+    const finalScoreText = document.getElementById("finalScoreText");
+    const finalBestText = document.getElementById("finalBestText");
+    const finalStatsText = document.getElementById("finalStatsText");
+    const finalRankText = document.getElementById("finalRankText");
+    const pauseStatsText = document.getElementById("pauseStatsText");
+    const tapHint = document.getElementById("tapHint");
+    const messageFlash = document.getElementById("messageFlash");
+
+    const appVersion = "v0.1 Itch Preview";
+
+    const difficultyModes = {
+      beginner: { label: "BEGINNER", speedMultiplier: 1.22 },
+      intermediate: { label: "INTERMEDIATE", speedMultiplier: 1.46 },
+      expert: { label: "EXPERT", speedMultiplier: 1.65 }
+    };
+
+    // Level-based structure.
+    // First 3 levels = 10 gates each, gentle ramp.
+    // Next 3 levels = 15 gates each, tighter gates and faster speed.
+    // After level 6, the game keeps generating longer champion levels.
+    const levelPlan = [
+      { gates: 10, speed: 2.25, gap: 310, spacing: 680, blockers: 0.00, rewards: 0.26, label: "Training Run" },
+      { gates: 10, speed: 2.45, gap: 295, spacing: 640, blockers: 0.00, rewards: 0.30, label: "Easy Drift" },
+      { gates: 10, speed: 2.65, gap: 280, spacing: 600, blockers: 0.03, rewards: 0.32, label: "Gate Runner" },
+      { gates: 15, speed: 2.95, gap: 255, spacing: 560, blockers: 0.05, rewards: 0.34, label: "Tighter Lines" },
+      { gates: 15, speed: 3.25, gap: 235, spacing: 520, blockers: 0.08, rewards: 0.36, label: "Fast Maze" },
+      { gates: 15, speed: 3.55, gap: 215, spacing: 480, blockers: 0.12, rewards: 0.38, label: "Arcade Test" }
+    ];
+
+    // Easy tuning knobs. Change these to adjust the feel of the game.
+    const settings = {
+      gravity: 0.36,
+      lift: -0.48,
+      releaseFloatFrames: 24,
+      releaseFloatLift: 0,
+      maxFallSpeed: 7.0,
+      maxRiseSpeed: -5.2,
+      speedRampPerGate: 0.018,
+      gapTightenPerGate: 1.15,
+      spacingTightenPerGate: 2.3,
+      slowMultiplier: 0.58,
+      slowDuration: 330,
+      breakerDuration: 400,
+      breakerWallBonus: 1500,
+      invincibleDuration: 95,
+      gateBounceForgiveness: 32,
+      gateBounceForce: 3.4,
+      gateBounceCooldownFrames: 12,
+      startLives: 3,
+      maxLives: 5,
+      freeRetriesPerLevel: 3,
+      adRetryGrant: 3,
+      pointBonus: 1250,
+      streakBonus: 1000,
+      wallWidth: 54,
+      minGap: 165,
+      minSpacing: 360,
+      ballRadius: 14,
+      rewardRadius: 25,
+      pixelSnap: true
+    };
+
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+    let running = false;
+    let gameOver = false;
+    let levelComplete = false;
+    let paused = false;
+    let pressing = false;
+    let releaseFloatTimer = 0;
+    let score = 0;
+    let levelScoreStart = 0;
+    let best = Number(localStorage.getItem("gravityRunnerBest") || 0);
+    let bestGates = Number(localStorage.getItem("gravityRunnerBestGates") || 0);
+    let bestStreakSaved = Number(localStorage.getItem("gravityRunnerBestStreak") || 0);
+    let totalRuns = Number(localStorage.getItem("gravityRunnerTotalRuns") || 0);
+    let savedLevel = Number(localStorage.getItem("gravityRunnerCurrentLevel") || 1);
+    let currentLevel = clamp(Math.floor(savedLevel || 1), 1, 999);
+    let levelFailAttempts = Number(localStorage.getItem("gravityRunnerLevelFailAttempts") || 0);
+    let adRetryCredits = Number(localStorage.getItem("gravityRunnerAdRetryCredits") || 0);
+    let currentDifficulty = localStorage.getItem("gravityRunnerDifficulty") || "beginner";
+    if (!difficultyModes[currentDifficulty]) currentDifficulty = "beginner";
+    let soundEnabled = localStorage.getItem("gravityRunnerSound") !== "off";
+    let adsRemovedLifetime = localStorage.getItem("gravityRunnerAdsRemoved") === "true";
+    let adsRemovedUntil = Number(localStorage.getItem("gravityRunnerAdsRemovedUntil") || 0);
+    let adsRemoved = areAdsRemoved();
+    let adEventCounter = Number(localStorage.getItem("gravityRunnerAdEventCounter") || 0);
+    let lastInterstitialAt = Number(localStorage.getItem("gravityRunnerLastInterstitialAt") || 0);
+    let rewardedAdCooldownAt = Number(localStorage.getItem("gravityRunnerRewardedAdCooldownAt") || 0);
+    let removeAdsOfferCounter = Number(localStorage.getItem("gravityRunnerRemoveAdsOfferCounter") || 0);
+    let lastRemoveAdsOfferAt = Number(localStorage.getItem("gravityRunnerLastRemoveAdsOfferAt") || 0);
+    const interstitialCooldownMs = 90000;
+    const rewardedInterstitialBlockMs = 90000;
+    const removeAdsOfferCooldownMs = 300000;
+    let rewardedAdCooldown = Date.now() - rewardedAdCooldownAt < rewardedInterstitialBlockMs;
+    let lastTime = 0;
+    let shake = 0;
+    let currentRank = "ROOKIE";
+    let lastAnnouncedRank = "ROOKIE";
+    let messageTimer = 0;
+    let flashTimer = 0;
+    let slowTimer = 0;
+    let breakerTimer = 0;
+    let invincibleTimer = 0;
+    let gateBounceCooldown = 0;
+    let lives = settings.startLives;
+    let currentMazeSpeed = 2.25;
+    let gatesCleared = 0;
+    let levelGatesCleared = 0;
+    let gateStreak = 0;
+    let bestGateStreak = 0;
+    let audioCtx = null;
+
+    const ball = {
+      x: 0,
+      y: 0,
+      vy: 0,
+      r: settings.ballRadius
+    };
+
+    let walls = [];
+    let particles = [];
+
+    function resize() {
+      dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = width + "px";
+      canvas.style.height = height + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ball.x = Math.max(80, width * 0.25);
+    }
+
+    function getLevelConfig(levelNum = currentLevel) {
+      if (levelNum <= levelPlan.length) return levelPlan[levelNum - 1];
+      const extra = levelNum - levelPlan.length;
+      return {
+        gates: 15 + Math.min(10, Math.floor(extra / 2) * 5),
+        speed: 3.55 + Math.min(1.6, extra * 0.16),
+        gap: Math.max(175, 215 - extra * 5),
+        spacing: Math.max(390, 480 - extra * 8),
+        blockers: Math.min(0.18, 0.12 + extra * 0.01),
+        rewards: Math.min(0.42, 0.38 + extra * 0.005),
+        label: "Champion Run"
+      };
+    }
+
+    function getLevelGoal() {
+      return getLevelConfig().gates;
+    }
+
+    function resetGame() {
+      const retryBlocked = gameOver && !levelComplete && levelFailAttempts >= settings.freeRetriesPerLevel && adRetryCredits <= 0;
+      if (retryBlocked) {
+        startOverAtLevelOne();
+        return;
+      }
+
+      if (gameOver && !levelComplete && levelFailAttempts >= settings.freeRetriesPerLevel && adRetryCredits > 0) {
+        adRetryCredits -= 1;
+        localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
+      }
+
+      score = levelScoreStart;
+      gatesCleared = 0;
+      levelGatesCleared = 0;
+      gateStreak = 0;
+      bestGateStreak = 0;
+      currentRank = getRank(score);
+      lastAnnouncedRank = currentRank;
+      running = true;
+      gameOver = false;
+      levelComplete = false;
+      paused = false;
+      pressing = false;
+      releaseFloatTimer = 0;
+      shake = 0;
+      messageTimer = 0;
+      flashTimer = 0;
+      slowTimer = 0;
+      breakerTimer = 0;
+      invincibleTimer = 0;
+      gateBounceCooldown = 0;
+      lives = settings.startLives;
+      totalRuns += 1;
+      localStorage.setItem("gravityRunnerTotalRuns", String(totalRuns));
+      hideMessage();
+      hideMenuAds();
+
+      const config = getLevelConfig();
+      currentMazeSpeed = config.speed;
+
+      ball.x = Math.max(80, width * 0.25);
+      ball.y = height * 0.5;
+      ball.vy = 0;
+      ball.r = settings.ballRadius;
+
+      walls = [];
+      particles = [];
+
+      // Start with breathing room before the first wall.
+      let nextX = width + 340;
+      for (let i = 0; i < 7; i++) {
+        walls.push(makeWall(nextX, i));
+        nextX += getSpacing();
+      }
+
+      scoreText.textContent = String(Math.floor(score));
+      levelText.textContent = String(currentLevel);
+      levelGateText.textContent = "0/" + getLevelGoal();
+      rankText.textContent = currentRank;
+      difficultyText.textContent = difficultyModes[currentDifficulty].label;
+      livesText.textContent = lives;
+      powerText.textContent = "NONE";
+      powerBarWrap.classList.add("hidden");
+      powerBar.style.transform = "scaleX(1)";
+      bestText.textContent = best;
+      gameOverTitle.textContent = "Game Over";
+      restartBtn.textContent = "Retry Level";
+      startPanel.classList.add("hidden");
+      gameOverPanel.classList.add("hidden");
+      pausePanel.classList.add("hidden");
+      pauseBtn.classList.remove("hidden");
+      tapHint.style.display = "block";
+      showMessage("LEVEL " + currentLevel, 44);
+      lastTime = performance.now();
+    }
+
+    function makeWall(x, index = 0) {
+      const config = getLevelConfig();
+      const gateProgress = levelGatesCleared / Math.max(1, config.gates - 1);
+      const gap = Math.max(settings.minGap, config.gap - gateProgress * settings.gapTightenPerGate * config.gates);
+      const margin = 52;
+      const wave = Math.sin((levelGatesCleared * 0.75) + index * 0.9 + currentLevel * 0.4) * 54;
+      const randomNudge = (Math.random() - 0.5) * 110;
+      let gapY = height * 0.5 + wave + randomNudge;
+      gapY = clamp(gapY, margin + gap / 2, height - margin - gap / 2);
+
+      const hasBlocker = Math.random() < config.blockers;
+      const blockerSide = Math.random() < 0.5 ? -1 : 1;
+
+      // Colored reward balls sometimes appear inside gates.
+      // Yellow = points, blue = slow maze, orange = wall breaker, red = extra life.
+      let reward = null;
+      const rewardAllowed = levelGatesCleared > 1 || index > 2;
+      if (rewardAllowed && Math.random() < config.rewards) {
+        reward = makeReward(gapY, gap);
+      }
+
+      return {
+        x,
+        w: settings.wallWidth,
+        gapY,
+        gap,
+        passed: false,
+        broken: false,
+        hasBlocker,
+        blockerSide,
+        blockerOffset: Math.random() * 1000,
+        reward
+      };
+    }
+
+    function makeReward(gapY, gap) {
+      const type = pickRewardType();
+      const safeOffset = gap * 0.22;
+      return {
+        type,
+        y: gapY + (Math.random() - 0.5) * safeOffset,
+        r: settings.rewardRadius,
+        collected: false,
+        pulse: Math.random() * 1000
+      };
+    }
+
+    function pickRewardType() {
+      const roll = Math.random();
+      if (roll < 0.38) return "points";
+      if (roll < 0.66) return "slow";
+      if (roll < 0.90) return "breaker";
+      return "life";
+    }
+
+    function getSpeed() {
+      const config = getLevelConfig();
+      const inLevelRamp = levelGatesCleared * settings.speedRampPerGate;
+      const mode = difficultyModes[currentDifficulty] || difficultyModes.beginner;
+      return (config.speed + inLevelRamp) * mode.speedMultiplier;
+    }
+
+    function getSpacing() {
+      const config = getLevelConfig();
+      return Math.max(settings.minSpacing, config.spacing - levelGatesCleared * settings.spacingTightenPerGate);
+    }
+
+    function update(dt) {
+      if (!running || gameOver || levelComplete || paused) return;
+
+      const scaled = dt / 16.67;
+      updatePowerTimers(scaled);
+
+      const baseSpeed = getSpeed();
+      currentMazeSpeed = slowTimer > 0 ? baseSpeed * settings.slowMultiplier : baseSpeed;
+      const speed = currentMazeSpeed * scaled;
+      score += speed * 0.72;
+
+      if (pressing) {
+        releaseFloatTimer = settings.releaseFloatFrames;
+        ball.vy += settings.lift * scaled;
+      } else if (releaseFloatTimer > 0) {
+        const floatRatio = releaseFloatTimer / settings.releaseFloatFrames;
+        const softenedGravity = settings.gravity * lerp(1, 0.18, floatRatio);
+        const floatLift = settings.releaseFloatLift * floatRatio;
+        ball.vy += (softenedGravity + floatLift) * scaled;
+        releaseFloatTimer -= scaled;
+      } else {
+        ball.vy += settings.gravity * scaled;
+      }
+
+      ball.vy = clamp(ball.vy, settings.maxRiseSpeed, settings.maxFallSpeed);
+      ball.y += ball.vy * scaled;
+
+      for (const wall of walls) {
+        wall.x -= speed;
+        if (!wall.passed && wall.x + wall.w < ball.x) {
+          clearGate(wall);
+        }
+      }
+
+      checkRewardCollision();
+
+      while (walls.length && walls[0].x + walls[0].w < -80) {
+        walls.shift();
+      }
+      while (walls.length < 7 && !levelComplete) {
+        const last = walls[walls.length - 1];
+        walls.push(makeWall(last.x + getSpacing(), walls.length));
+      }
+
+      updateRank();
+      updateParticles(scaled);
+      updateMessage(scaled);
+      checkCollision();
+
+      scoreText.textContent = Math.floor(score);
+      levelText.textContent = currentLevel;
+      levelGateText.textContent = levelGatesCleared + "/" + getLevelGoal();
+      rankText.textContent = currentRank;
+      difficultyText.textContent = difficultyModes[currentDifficulty].label;
+      livesText.textContent = lives;
+      updatePowerHud();
+      bestText.textContent = best;
+
+      if (score - levelScoreStart > 35) {
+        tapHint.style.display = "none";
+      }
+    }
+
+    function clearGate(wall) {
+      wall.passed = true;
+      gatesCleared += 1;
+      levelGatesCleared += 1;
+      gateStreak += 1;
+      bestGateStreak = Math.max(bestGateStreak, gateStreak);
+      flashTimer = 8;
+      playTone(520, 0.035, "square", 0.035);
+      popParticles(ball.x, ball.y, 8, "#bdfbff");
+
+      if (gateStreak > 0 && gateStreak % 5 === 0) {
+        const bonus = settings.streakBonus * (gateStreak / 5);
+        score += bonus;
+        showMessage("STREAK " + gateStreak + "  +" + bonus, 46);
+        playTone(1040, 0.07, "square", 0.052);
+        popParticles(ball.x, ball.y, 18, "#ffe66d");
+      }
+
+      if (levelGatesCleared >= getLevelGoal()) {
+        completeLevel();
+      }
+    }
+
+    function completeLevel() {
+      if (levelComplete) return;
+      running = false;
+      levelComplete = true;
+      paused = false;
+      pressing = false;
+      pauseBtn.classList.add("hidden");
+      gateStreak = 0;
+      slowTimer = 0;
+      breakerTimer = 0;
+      powerBarWrap.classList.add("hidden");
+      flashTimer = 18;
+      shake = 7;
+
+      const rounded = Math.floor(score + currentLevel * 250);
+      score = rounded;
+      levelScoreStart = score;
+      currentLevel += 1;
+      levelFailAttempts = 0;
+      adRetryCredits = 0;
+      localStorage.setItem("gravityRunnerCurrentLevel", String(currentLevel));
+      localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
+      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
+
+      const isNewBest = rounded > best;
+      if (isNewBest) {
+        best = rounded;
+        localStorage.setItem("gravityRunnerBest", String(best));
+      }
+      if (levelGatesCleared > bestGates) {
+        bestGates = levelGatesCleared;
+        localStorage.setItem("gravityRunnerBestGates", String(bestGates));
+      }
+      if (bestGateStreak > bestStreakSaved) {
+        bestStreakSaved = bestGateStreak;
+        localStorage.setItem("gravityRunnerBestStreak", String(bestStreakSaved));
+      }
+
+      playTone(980, 0.1, "square", 0.06);
+      showMessage("LEVEL CLEAR", 90);
+      finalScoreText.textContent = "Level Clear Bonus! Score: " + rounded;
+      finalBestText.textContent = "Best: " + best + " / Runs: " + totalRuns;
+      finalStatsText.textContent = "Next Level: " + currentLevel + " / Gates: " + getLevelGoal() + " / " + difficultyModes[currentDifficulty].label;
+      finalRankText.textContent = "Rank: " + getRank(rounded);
+      gameOverTitle.textContent = "Level Complete";
+      restartBtn.textContent = "Next Level";
+      bestText.textContent = best;
+
+      setTimeout(() => {
+        gameOverPanel.classList.remove("hidden");
+        maybeShowInterstitial("level_complete", currentLevel - 1);
+        updateAdSlots();
+      }, 500);
+      updateStartStats();
+    }
+
+    function updatePowerTimers(scaled) {
+      if (slowTimer > 0) slowTimer = Math.max(0, slowTimer - scaled);
+      if (breakerTimer > 0) breakerTimer = Math.max(0, breakerTimer - scaled);
+      if (invincibleTimer > 0) invincibleTimer = Math.max(0, invincibleTimer - scaled);
+      if (gateBounceCooldown > 0) gateBounceCooldown = Math.max(0, gateBounceCooldown - scaled);
+    }
+
+    function updatePowerHud() {
+      if (breakerTimer > 0) {
+        const ratio = breakerTimer / settings.breakerDuration;
+        powerText.textContent = "BREAK " + Math.ceil(breakerTimer / 60);
+        powerBarWrap.classList.remove("hidden");
+        powerBar.style.background = "#ff9f1c";
+        powerBar.style.transform = "scaleX(" + ratio + ")";
+      } else if (slowTimer > 0) {
+        const ratio = slowTimer / settings.slowDuration;
+        powerText.textContent = "SLOW " + Math.ceil(slowTimer / 60);
+        powerBarWrap.classList.remove("hidden");
+        powerBar.style.background = "#4dabff";
+        powerBar.style.transform = "scaleX(" + ratio + ")";
+      } else {
+        powerText.textContent = gateStreak > 0 ? "STREAK " + gateStreak : "NONE";
+        powerBarWrap.classList.add("hidden");
+        powerBar.style.transform = "scaleX(1)";
+      }
+    }
+
+    function checkRewardCollision() {
+      for (const wall of walls) {
+        if (!wall.reward || wall.reward.collected || wall.broken) continue;
+        const rewardX = wall.x + wall.w / 2;
+        const rewardY = wall.reward.y;
+        if (circleCircle(ball.x, ball.y, ball.r, rewardX, rewardY, wall.reward.r)) {
+          collectReward(wall.reward, rewardX, rewardY);
+          wall.reward.collected = true;
+        }
+      }
+    }
+
+    function collectReward(reward, x, y) {
+      if (reward.type === "points") {
+        score += settings.pointBonus;
+        showMessage("+" + settings.pointBonus, 36);
+        playTone(980, 0.06, "square", 0.05);
+        popParticles(x, y, 16, "#ffe66d");
+      }
+
+      if (reward.type === "slow") {
+        slowTimer = settings.slowDuration;
+        showMessage("SLOW MAZE", 48);
+        playTone(420, 0.09, "triangle", 0.055);
+        popParticles(x, y, 18, "#4dabff");
+      }
+
+      if (reward.type === "breaker") {
+        breakerTimer = settings.breakerDuration;
+        showMessage("WALL BREAKER", 48);
+        playTone(720, 0.09, "square", 0.055);
+        popParticles(x, y, 20, "#ff9f1c");
+      }
+
+      if (reward.type === "life") {
+        if (lives < settings.maxLives) {
+          lives += 1;
+          showMessage("+1 LIFE", 48);
+        } else {
+          score += settings.pointBonus;
+          showMessage("MAX LIVES +" + settings.pointBonus, 48);
+        }
+        playTone(1180, 0.08, "square", 0.06);
+        popParticles(x, y, 22, "#ff4d4d");
+      }
+    }
+
+    function updateRank() {
+      currentRank = getRank(score);
+      if (currentRank !== lastAnnouncedRank) {
+        lastAnnouncedRank = currentRank;
+        showMessage(currentRank, 56);
+        playTone(860, 0.08, "square", 0.05);
+      }
+    }
+
+    function getRank(value) {
+      if (value >= 21000) return "LEGEND";
+      if (value >= 15500) return "ACE";
+      if (value >= 10500) return "PRO";
+      if (value >= 6500) return "RUNNER";
+      if (value >= 2600) return "DRIFTER";
+      return "ROOKIE";
+    }
+
+    function showMessage(text, frames = 35) {
+      messageFlash.textContent = text;
+      messageFlash.classList.add("show");
+      messageTimer = frames;
+    }
+
+    function hideMessage() {
+      messageFlash.classList.remove("show");
+      messageFlash.textContent = "";
+    }
+
+    function updateMessage(scaled) {
+      if (messageTimer > 0) {
+        messageTimer -= scaled;
+        if (messageTimer <= 0) {
+          hideMessage();
+        }
+      }
+    }
+
+    function checkCollision() {
+      if (invincibleTimer > 0) return;
+
+      if (ball.y - ball.r <= 0 || ball.y + ball.r >= height) {
+        loseLife("edge");
+        return;
+      }
+
+      for (const wall of walls) {
+        if (wall.broken) continue;
+
+        const inX = ball.x + ball.r > wall.x && ball.x - ball.r < wall.x + wall.w;
+        if (!inX) continue;
+
+        const topWallBottom = wall.gapY - wall.gap / 2;
+        const bottomWallTop = wall.gapY + wall.gap / 2;
+        const hitTopOrBottom = ball.y - ball.r < topWallBottom || ball.y + ball.r > bottomWallTop;
+        const hitBlocker = wall.hasBlocker && hitsBlocker(wall);
+
+        if (hitBlocker) {
+          if (breakerTimer > 0) {
+            breakWall(wall);
+            continue;
+          }
+          loseLife("wall");
+          return;
+        }
+
+        if (hitTopOrBottom) {
+          if (breakerTimer > 0) {
+            breakWall(wall);
+            continue;
+          }
+          if (tryGateBounce(wall, topWallBottom, bottomWallTop)) {
+            return;
+          }
+          loseLife("wall");
+          return;
+        }
+      }
+    }
+
+    function tryGateBounce(wall, topWallBottom, bottomWallTop) {
+      if (gateBounceCooldown > 0) return true;
+
+      const ballCenterInsideWallWidth = ball.x >= wall.x && ball.x <= wall.x + wall.w;
+      if (!ballCenterInsideWallWidth) return false;
+
+      const topEdge = ball.y - ball.r;
+      const bottomEdge = ball.y + ball.r;
+      const topOverlap = topWallBottom - topEdge;
+      const bottomOverlap = bottomEdge - bottomWallTop;
+
+      const topLipScrape = topOverlap > 0 && topOverlap <= settings.gateBounceForgiveness;
+      const bottomLipScrape = bottomOverlap > 0 && bottomOverlap <= settings.gateBounceForgiveness;
+
+      if (topLipScrape) {
+        ball.y = topWallBottom + ball.r + 2;
+        ball.vy = Math.max(ball.vy, settings.gateBounceForce);
+        gateBounceCooldown = settings.gateBounceCooldownFrames;
+        flashTimer = Math.max(flashTimer, 6);
+        playTone(300, 0.035, "square", 0.032);
+        popParticles(ball.x, ball.y, 9, "#bdfbff");
+        return true;
+      }
+
+      if (bottomLipScrape) {
+        ball.y = bottomWallTop - ball.r - 2;
+        ball.vy = Math.min(ball.vy, -settings.gateBounceForce);
+        gateBounceCooldown = settings.gateBounceCooldownFrames;
+        flashTimer = Math.max(flashTimer, 6);
+        playTone(300, 0.035, "square", 0.032);
+        popParticles(ball.x, ball.y, 9, "#bdfbff");
+        return true;
+      }
+
+      return false;
+    }
+
+    function loseLife(reason) {
+      lives -= 1;
+      gateStreak = 0;
+      slowTimer = 0;
+      breakerTimer = 0;
+      invincibleTimer = settings.invincibleDuration;
+      shake = 13;
+      flashTimer = 16;
+      ball.y = clamp(ball.y, height * 0.25, height * 0.75);
+      ball.vy = 0;
+      popParticles(ball.x, ball.y, 24, "#ff4d4d");
+      playTone(115, 0.11, "sawtooth", 0.05);
+
+      if (lives <= 0) {
+        lives = 0;
+        endGame();
+        return;
+      }
+
+      livesText.textContent = lives;
+      showMessage(lives + " LIVES LEFT", 58);
+    }
+
+    function breakWall(wall) {
+      wall.broken = true;
+      wall.passed = true;
+      gateStreak = 0;
+      score += settings.breakerWallBonus;
+      showMessage("BREAK +" + settings.breakerWallBonus, 34);
+      flashTimer = 12;
+      shake = 9;
+      playTone(180, 0.08, "square", 0.055);
+      popParticles(wall.x + wall.w / 2, ball.y, 30, "#ff9f1c");
+    }
+
+    function hitsBlocker(wall) {
+      const blockW = wall.w + 10;
+      const blockH = 26;
+      const blockX = wall.x - 5;
+      const blockY = wall.gapY + wall.blockerSide * (wall.gap * 0.24);
+      return circleRect(ball.x, ball.y, ball.r, blockX, blockY - blockH / 2, blockW, blockH);
+    }
+
+    function endGame() {
+      if (gameOver) return;
+      running = false;
+      gameOver = true;
+      paused = false;
+      pauseBtn.classList.add("hidden");
+      levelFailAttempts += 1;
+      localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
+      levelComplete = false;
+      gateStreak = 0;
+      powerBarWrap.classList.add("hidden");
+      shake = 14;
+      popParticles(ball.x, ball.y, 18, breakerTimer > 0 ? "#ff9f1c" : "#bdfbff");
+
+      const rounded = Math.floor(score);
+      const isNewBest = rounded > best;
+      const isNewBestGates = levelGatesCleared > bestGates;
+      const isNewBestStreak = bestGateStreak > bestStreakSaved;
+
+      if (isNewBest) {
+        best = rounded;
+        localStorage.setItem("gravityRunnerBest", String(best));
+      }
+      if (isNewBestGates) {
+        bestGates = levelGatesCleared;
+        localStorage.setItem("gravityRunnerBestGates", String(bestGates));
+      }
+      if (isNewBestStreak) {
+        bestStreakSaved = bestGateStreak;
+        localStorage.setItem("gravityRunnerBestStreak", String(bestStreakSaved));
+      }
+
+      if (isNewBest || isNewBestGates || isNewBestStreak) {
+        showMessage("NEW RECORD", 70);
+        playTone(900, 0.09, "square", 0.055);
+      } else {
+        playTone(130, 0.12, "sawtooth", 0.04);
+      }
+
+      gameOverTitle.textContent = "Level Failed";
+      finalScoreText.textContent = "Score: " + rounded;
+      finalBestText.textContent = "Best: " + best + " / Runs: " + totalRuns;
+      finalStatsText.textContent = getRetryStatusText();
+      finalRankText.textContent = "Rank: " + getRank(rounded);
+      restartBtn.textContent = getRetryButtonText();
+      updateRewardButtons();
+      bestText.textContent = best;
+
+      setTimeout(() => {
+        gameOverPanel.classList.remove("hidden");
+        maybeShowInterstitial("level_failed", currentLevel);
+        updateAdSlots();
+      }, 350);
+      updateStartStats();
+    }
+
+    function draw() {
+      const offsetX = shake > 0 ? (Math.random() - 0.5) * shake : 0;
+      const offsetY = shake > 0 ? (Math.random() - 0.5) * shake : 0;
+      if (shake > 0) shake *= 0.82;
+      if (shake < 0.3) shake = 0;
+
+      ctx.save();
+      ctx.clearRect(0, 0, width, height);
+      ctx.translate(offsetX, offsetY);
+
+      drawBackground();
+      drawFlash();
+      drawWalls();
+      drawRewards();
+      drawParticles();
+      drawBall();
+      drawScanlines();
+
+      ctx.restore();
+    }
+
+    function drawBackground() {
+      ctx.fillStyle = "#050505";
+      ctx.fillRect(-20, -20, width + 40, height + 40);
+
+      ctx.fillStyle = "rgba(189,251,255,0.22)";
+      const offset = (score * 0.8) % 34;
+      for (let x = -34 - offset; x < width + 34; x += 34) {
+        for (let y = 24; y < height; y += 34) {
+          if ((Math.floor(y / 34) + Math.floor(x / 34)) % 3 === 0) {
+            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+          }
+        }
+      }
+
+      ctx.fillStyle = "#f7f7f7";
+      ctx.fillRect(0, 0, width, 4);
+      ctx.fillRect(0, height - 4, width, 4);
+    }
+
+    function drawFlash() {
+      if (flashTimer <= 0) return;
+      ctx.fillStyle = "rgba(189,251,255," + (flashTimer / 42) + ")";
+      ctx.fillRect(0, 0, width, height);
+      flashTimer -= 1;
+    }
+
+    function drawWalls() {
+      for (const wall of walls) {
+        if (wall.broken) continue;
+
+        const x = snap(wall.x);
+        const w = wall.w;
+        const topWallH = wall.gapY - wall.gap / 2;
+        const bottomY = wall.gapY + wall.gap / 2;
+
+        ctx.fillStyle = "#f7f7f7";
+        ctx.fillRect(x, 0, w, topWallH);
+        ctx.fillRect(x, bottomY, w, height - bottomY);
+
+        ctx.fillStyle = "#111";
+        for (let y = 8; y < topWallH - 8; y += 22) {
+          ctx.fillRect(x + 8, y, 10, 10);
+          ctx.fillRect(x + w - 18, y + 8, 10, 10);
+        }
+        for (let y = bottomY + 8; y < height - 12; y += 22) {
+          ctx.fillRect(x + 8, y, 10, 10);
+          ctx.fillRect(x + w - 18, y + 8, 10, 10);
+        }
+
+        ctx.fillStyle = "#bdfbff";
+        ctx.fillRect(x, topWallH - 4, w, 4);
+        ctx.fillRect(x, bottomY, w, 4);
+
+        if (wall.hasBlocker) {
+          const blockH = 26;
+          const blockY = wall.gapY + wall.blockerSide * (wall.gap * 0.24);
+          ctx.fillStyle = "#ff4d4d";
+          ctx.fillRect(x - 5, blockY - blockH / 2, w + 10, blockH);
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(x + 6, blockY - 3, w - 12, 6);
+        }
+      }
+    }
+
+    function drawRewards() {
+      for (const wall of walls) {
+        if (!wall.reward || wall.reward.collected || wall.broken) continue;
+        const reward = wall.reward;
+        const x = snap(wall.x + wall.w / 2);
+        const y = snap(reward.y + Math.sin((score * 0.03) + reward.pulse) * 2);
+        const color = getRewardColor(reward.type);
+        const label = getRewardLabel(reward.type);
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x - reward.r, y - reward.r + 3, reward.r * 2, reward.r * 2 - 6);
+        ctx.fillRect(x - reward.r + 3, y - reward.r, reward.r * 2 - 6, reward.r * 2);
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(x - 3, y - reward.r + 2, 6, 4);
+
+        ctx.fillStyle = "#050505";
+        ctx.font = "900 17px Courier New";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, x, y + 1);
+      }
+      ctx.textAlign = "left";
+      ctx.textBaseline = "alphabetic";
+    }
+
+    function getRewardColor(type) {
+      if (type === "slow") return "#4dabff";
+      if (type === "breaker") return "#ff9f1c";
+      if (type === "life") return "#ff4d4d";
+      return "#ffe66d";
+    }
+
+    function getRewardLabel(type) {
+      if (type === "slow") return "S";
+      if (type === "breaker") return "B";
+      if (type === "life") return "L";
+      return "+";
+    }
+
+    function drawBall() {
+      const x = snap(ball.x);
+      const y = snap(ball.y);
+      const r = ball.r;
+      const hasBreaker = breakerTimer > 0;
+      const hasSlow = slowTimer > 0;
+      const isInvincible = invincibleTimer > 0;
+
+      ctx.fillStyle = isInvincible && Math.floor(invincibleTimer / 6) % 2 === 0 ? "#ff4d4d" : hasBreaker ? "#ff9f1c" : "#f7f7f7";
+      ctx.fillRect(x - r, y - r + 4, r * 2, r * 2 - 8);
+      ctx.fillRect(x - r + 4, y - r, r * 2 - 8, r * 2);
+
+      ctx.fillStyle = hasBreaker ? "#fff" : hasSlow ? "#4dabff" : "#bdfbff";
+      ctx.fillRect(x - 4, y - r + 3, 8, 5);
+      ctx.fillRect(x - r + 3, y - 4, 5, 8);
+
+      ctx.fillStyle = "#050505";
+      ctx.fillRect(x + 3, y - 4, 4, 4);
+
+      if (hasBreaker || isInvincible) {
+        ctx.strokeStyle = isInvincible ? "#ff4d4d" : "#ff9f1c";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x - r - 5, y - r - 5, r * 2 + 10, r * 2 + 10);
+      }
+    }
+
+    function popParticles(x, y, count, color = "#bdfbff") {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5,
+          life: 22 + Math.random() * 18,
+          size: 2 + Math.random() * 4,
+          color
+        });
+      }
+    }
+
+    function updateParticles(scaled) {
+      for (const p of particles) {
+        p.x += p.vx * scaled;
+        p.y += p.vy * scaled;
+        p.life -= scaled;
+      }
+      particles = particles.filter(p => p.life > 0);
+    }
+
+    function drawParticles() {
+      for (const p of particles) {
+        ctx.fillStyle = p.color || "#bdfbff";
+        ctx.globalAlpha = clamp(p.life / 34, 0, 1);
+        ctx.fillRect(snap(p.x), snap(p.y), p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawScanlines() {
+      ctx.fillStyle = "rgba(0,0,0,0.16)";
+      for (let y = 0; y < height; y += 4) {
+        ctx.fillRect(0, y, width, 1);
+      }
+    }
+
+    function loop(now) {
+      const dt = Math.min(34, now - lastTime || 16.67);
+      lastTime = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function setPressing(value) {
+      if (value) {
+        initAudio();
+      }
+      if (pressing && !value) {
+        releaseFloatTimer = settings.releaseFloatFrames;
+      }
+      pressing = value;
+    }
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) audioCtx = new AudioContext();
+      }
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(freq, duration, type = "square", volume = 0.035) {
+      if (!audioCtx || !soundEnabled) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function beginRunWithInputHeld() {
+      resetGame();
+      setPressing(true);
+    }
+
+    function pauseGame() {
+      if (!running || gameOver || levelComplete || paused) return;
+      paused = true;
+      pressing = false;
+      pauseStatsText.textContent = "Level " + currentLevel + " / Gates " + levelGatesCleared + "/" + getLevelGoal() + " / Lives " + lives;
+      pausePanel.classList.remove("hidden");
+      pauseBtn.classList.add("hidden");
+      showMessage("PAUSED", 30);
+    }
+
+    function resumeGame() {
+      if (!paused) return;
+      paused = false;
+      pausePanel.classList.add("hidden");
+      pauseBtn.classList.remove("hidden");
+      lastTime = performance.now();
+      showMessage("RUN", 24);
+    }
+
+    function quitToMenu() {
+      paused = false;
+      running = false;
+      pressing = false;
+      pausePanel.classList.add("hidden");
+      pauseBtn.classList.add("hidden");
+      startPanel.classList.remove("hidden");
+      updateStartStats();
+    }
+
+    function startFromInput(event) {
+      if (event.target && event.target.closest && event.target.closest("button")) return;
+      if (paused) return;
+      event.preventDefault();
+      if (!running && !gameOver && !levelComplete && !startPanel.classList.contains("hidden")) {
+        beginRunWithInputHeld();
+        return;
+      }
+      setPressing(true);
+    }
+
+    function releaseInput(event) {
+      if (event) event.preventDefault();
+      setPressing(false);
+    }
+
+    function isSpaceKey(event) {
+      return event.code === "Space" || event.key === " " || event.key === "Spacebar";
+    }
+
+    startBtn.addEventListener("click", resetGame);
+    restartBtn.addEventListener("click", resetGame);
+    pauseBtn.addEventListener("click", pauseGame);
+    resumeBtn.addEventListener("click", resumeGame);
+    restartLevelBtn.addEventListener("click", () => {
+      pausePanel.classList.add("hidden");
+      paused = false;
+      resetGame();
+    });
+    quitToMenuBtn.addEventListener("click", quitToMenu);
+
+    soundToggleBtn.addEventListener("click", () => {
+      soundEnabled = !soundEnabled;
+      localStorage.setItem("gravityRunnerSound", soundEnabled ? "on" : "off");
+      updateSoundButton();
+      showMessage(soundEnabled ? "SOUND ON" : "SOUND OFF", 34);
+    });
+
+    resetProgressBtn.addEventListener("click", () => {
+      const confirmed = window.confirm("Reset Gravity Runner progress on this device?");
+      if (!confirmed) return;
+      localStorage.removeItem("gravityRunnerBest");
+      localStorage.removeItem("gravityRunnerBestGates");
+      localStorage.removeItem("gravityRunnerBestStreak");
+      localStorage.removeItem("gravityRunnerTotalRuns");
+      localStorage.removeItem("gravityRunnerCurrentLevel");
+      localStorage.removeItem("gravityRunnerLevelFailAttempts");
+      localStorage.removeItem("gravityRunnerAdRetryCredits");
+      best = 0;
+      bestGates = 0;
+      bestStreakSaved = 0;
+      totalRuns = 0;
+      currentLevel = 1;
+      levelFailAttempts = 0;
+      adRetryCredits = 0;
+      levelScoreStart = 0;
+      score = 0;
+      bestText.textContent = best;
+      levelText.textContent = currentLevel;
+      levelGateText.textContent = "0/" + getLevelGoal();
+      updateStartStats();
+      showMessage("PROGRESS RESET", 42);
+    });
+
+    difficultyButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        if (running && !paused) return;
+        const nextDifficulty = button.dataset.difficulty || "beginner";
+        if (!difficultyModes[nextDifficulty]) return;
+        if (nextDifficulty !== currentDifficulty) {
+          changeDifficultyAndRestart(nextDifficulty);
+          return;
+        }
+        updateDifficultyButtons();
+      });
+    });
+
+    window.addEventListener("pointerdown", startFromInput, { passive: false });
+    window.addEventListener("pointerup", releaseInput, { passive: false });
+    window.addEventListener("pointercancel", releaseInput, { passive: false });
+    window.addEventListener("blur", () => setPressing(false));
+
+    window.addEventListener("keydown", (event) => {
+      if (!isSpaceKey(event)) return;
+      event.preventDefault();
+      if (event.repeat && running) return;
+
+      if (paused) {
+        resumeGame();
+        return;
+      }
+
+      if (!running && !gameOver && !levelComplete && !startPanel.classList.contains("hidden")) {
+        beginRunWithInputHeld();
+        return;
+      }
+
+      if ((gameOver || levelComplete) && !gameOverPanel.classList.contains("hidden")) {
+        beginRunWithInputHeld();
+        return;
+      }
+
+      setPressing(true);
+    });
+
+    window.addEventListener("keyup", (event) => {
+      if (!isSpaceKey(event)) return;
+      event.preventDefault();
+      setPressing(false);
+    });
+
+    window.addEventListener("resize", resize);
+
+    function circleRect(cx, cy, cr, rx, ry, rw, rh) {
+      const closestX = clamp(cx, rx, rx + rw);
+      const closestY = clamp(cy, ry, ry + rh);
+      const dx = cx - closestX;
+      const dy = cy - closestY;
+      return dx * dx + dy * dy < cr * cr;
+    }
+
+    function circleCircle(ax, ay, ar, bx, by, br) {
+      const dx = ax - bx;
+      const dy = ay - by;
+      const r = ar + br;
+      return dx * dx + dy * dy <= r * r;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * clamp(t, 0, 1);
+    }
+
+    function snap(value) {
+      return settings.pixelSnap ? Math.round(value) : value;
+    }
+
+    function changeDifficultyAndRestart(nextDifficulty) {
+      currentDifficulty = nextDifficulty;
+      localStorage.setItem("gravityRunnerDifficulty", currentDifficulty);
+      currentLevel = 1;
+      levelScoreStart = 0;
+      score = 0;
+      levelFailAttempts = 0;
+      adRetryCredits = 0;
+      gameOver = false;
+      levelComplete = false;
+      paused = false;
+      running = false;
+      pressing = false;
+      localStorage.setItem("gravityRunnerCurrentLevel", String(currentLevel));
+      localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
+      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
+      pausePanel.classList.add("hidden");
+      gameOverPanel.classList.add("hidden");
+      startPanel.classList.remove("hidden");
+      pauseBtn.classList.add("hidden");
+      levelText.textContent = currentLevel;
+      levelGateText.textContent = "0/" + getLevelGoal();
+      updateDifficultyButtons();
+      updateStartStats();
+      showMessage("MODE: " + difficultyModes[currentDifficulty].label, 54);
+    }
+
+    function startOverAtLevelOne() {
+      currentLevel = 1;
+      levelScoreStart = 0;
+      score = 0;
+      levelFailAttempts = 0;
+      adRetryCredits = 0;
+      localStorage.setItem("gravityRunnerCurrentLevel", String(currentLevel));
+      localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
+      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
+      showMessage("BACK TO LEVEL 1", 58);
+      resetGame();
+    }
+
+    function getRetriesLeft() {
+      return Math.max(0, settings.freeRetriesPerLevel - levelFailAttempts);
+    }
+
+    function getRetryStatusText() {
+      const retriesLeft = getRetriesLeft();
+      if (retriesLeft > 0) {
+        return "Level " + currentLevel + " Progress: " + levelGatesCleared + "/" + getLevelGoal() + " Gates / Retries Left: " + retriesLeft;
+      }
+      if (adRetryCredits > 0) {
+        return "Level " + currentLevel + " Progress: " + levelGatesCleared + "/" + getLevelGoal() + " Gates / Extra Retry Credits: " + adRetryCredits;
+      }
+      return "No retries left. Start over at Level 1.";
+    }
+
+    function getRetryButtonText() {
+      const retriesLeft = getRetriesLeft();
+      if (retriesLeft > 0) return "Retry Level " + currentLevel + " (" + retriesLeft + " Left)";
+      if (adRetryCredits > 0) return "Retry Level " + currentLevel + " (Extra Credit " + adRetryCredits + ")";
+      return "Start Over at Level 1";
+    }
+
+    function updateRewardButtons() {
+      return;
+    }
+
+    let nativeBannerVisible = false;
+
+    function areAdsRemoved() {
+      return adsRemovedLifetime || Date.now() < adsRemovedUntil;
+    }
+
+    function syncAdsRemovedState() {
+      if (!adsRemovedLifetime && adsRemovedUntil > 0 && Date.now() >= adsRemovedUntil) {
+        adsRemovedUntil = 0;
+        localStorage.removeItem("gravityRunnerAdsRemovedUntil");
+      }
+      adsRemoved = areAdsRemoved();
+      return adsRemoved;
+    }
+
+    function logInterstitialSkip(reason) {
+      console.log("Interstitial skipped:", reason);
+    }
+
+    function isEligibleLevelEndScreen(reason) {
+      return (reason === "level_complete" || reason === "level_failed") && !gameOverPanel.classList.contains("hidden");
+    }
+
+    function maybeShowInterstitial(reason, endedLevel) {
+      return;
+    }
+
+    function updateAdSlots() {
+      nativeBannerVisible = false;
+    }
+
+    function hideMenuAds() {
+      nativeBannerVisible = false;
+    }
+
+    function updatePurchaseUi() {
+      return;
+    }
+
+    function updateSoundButton() {
+      soundToggleBtn.textContent = soundEnabled ? "Sound: On" : "Sound: Off";
+    }
+
+    function updateDifficultyButtons() {
+      difficultyButtons.forEach((button) => {
+        button.classList.toggle("active", button.dataset.difficulty === currentDifficulty);
+      });
+      difficultyText.textContent = difficultyModes[currentDifficulty].label;
+    }
+
+    function updateStartStats() {
+      versionLabel.textContent = appVersion;
+      startStatsText.textContent = "Level: " + currentLevel + " / " + difficultyModes[currentDifficulty].label + " / Best: " + best + " / Runs: " + totalRuns;
+      updateAdSlots();
+    }
+
+    resize();
+    bestText.textContent = best;
+    rankText.textContent = currentRank;
+    updateSoundButton();
+    updatePurchaseUi();
+    updateDifficultyButtons();
+    levelText.textContent = currentLevel;
+    levelGateText.textContent = "0/" + getLevelGoal();
+    livesText.textContent = lives;
+    updateStartStats();
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
