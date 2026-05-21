@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 def keystorePropertiesFile = rootProject.file('key.properties')
 def keystoreProperties = new Properties()
 def hasReleaseSigningConfig = keystorePropertiesFile.exists()
-def distributionChannel = (project.findProperty("distributionChannel") ?: "aptoide").toString()
+def distributionChannel = (project.findProperty("distributionChannel") ?: "samsung").toString()
 def aptoidePublicKey = (project.findProperty("aptoidePublicKey") ?: "").toString()
 
 // Debug builds use Google's public AdMob test IDs. Release builds use Gravity Runner production IDs.

@@ -243,17 +243,7 @@
     }
 
     .adSlot {
-      margin: 12px auto 0;
-      width: min(320px, 86vw);
-      min-height: 38px;
-      border: 2px dashed #555;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #777;
-      font-size: 11px;
-      font-weight: 900;
-      text-transform: uppercase;
+      display: none;
     }
 
     .adSlot.hidden {
@@ -431,7 +421,7 @@
       <div class="box">
         <h1>Gravity Runner</h1>
         <p class="subtitle">A tiny Atari-style endless maze runner.</p>
-        <div class="versionTag" id="versionLabel">v0.1 Galaxy Preview</div>
+        <div class="versionTag" id="versionLabel">v1.0 Galaxy Store</div>
         <p class="instructions" id="startStatsText">Level: 1 / Best: 0 / Runs: 0</p>
         <div class="difficultySelect" aria-label="Difficulty selection">
           <div class="difficultyTitle">Choose Speed</div>
@@ -461,7 +451,7 @@
           <span class="rewardPill red">L LIFE</span>
         </div>
         <button id="startBtn">Start</button>
-        <div id="startAdSlot" class="adSlot">Ad space</div>
+        <div id="startAdSlot" class="adSlot"></div>
       </div>
     </section>
 
@@ -485,7 +475,7 @@
           <button id="continueAdBtn" class="adBtn" type="button">Watch Ad: Continue</button>
           <button id="passLevelAdBtn" class="adBtn" type="button">Watch Ad: +3 Retries</button>
         </div>
-        <div id="gameOverAdSlot" class="adSlot hidden">Ad space</div>
+        <div id="gameOverAdSlot" class="adSlot hidden"></div>
         <button id="restartBtn">Retry Level</button>
       </div>
     </section>
@@ -508,8 +498,8 @@
         <h1 id="removeAdsOfferTitle">Remove Ads</h1>
         <p class="subtitle" id="removeAdsOfferBody">Choose how you want to play Gravity Runner with ads removed.</p>
         <div class="offerActions" id="removeAdsOfferActions">
-          <button id="removeAds30DaysBtn" class="offerBtn primary" type="button">30 Days - $3.99</button>
-          <button id="removeAdsLifetimeBtn" class="offerBtn primary" type="button">Forever - $9.99</button>
+          <button id="removeAds30DaysBtn" class="offerBtn primary hiddenSoft" type="button">Remove Ads</button>
+          <button id="removeAdsLifetimeBtn" class="offerBtn primary" type="button">Remove Ads</button>
           <button id="removeAdsNoThanksBtn" class="offerBtn neutral" type="button">No Thanks</button>
           <button id="removeAdsDeclineBtn" class="offerBtn neutral hiddenSoft" type="button">Decline</button>
           <button id="removeAdsTakeDealBtn" class="offerBtn secondary hiddenSoft" type="button">Take Deal</button>
@@ -571,7 +561,7 @@
     const tapHint = document.getElementById("tapHint");
     const messageFlash = document.getElementById("messageFlash");
 
-    const appVersion = "v0.1 Galaxy Preview";
+    const appVersion = "v1.0 Galaxy Store";
 
     const difficultyModes = {
       beginner: { label: "BEGINNER", speedMultiplier: 1.22 },
@@ -1607,7 +1597,7 @@
     removeAdsBtn.addEventListener("click", () => showRemoveAdsOffer(false));
     restorePurchaseBtn.addEventListener("click", restorePurchases);
     removeAds30DaysBtn.addEventListener("click", purchaseAptoideRemoveAds30Days);
-    removeAdsLifetimeBtn.addEventListener("click", purchaseAptoideRemoveAdsLifetime);
+    removeAdsLifetimeBtn.addEventListener("click", purchasePrimaryRemoveAds);
     removeAdsNoThanksBtn.addEventListener("click", showRemoveAdsDeclineConfirm);
     removeAdsDeclineBtn.addEventListener("click", hideRemoveAdsOffer);
     removeAdsTakeDealBtn.addEventListener("click", () => showRemoveAdsOffer(false));
@@ -1774,7 +1764,7 @@
       if (adRetryCredits > 0) {
         return "Level " + currentLevel + " Progress: " + levelGatesCleared + "/" + getLevelGoal() + " Gates / Ad Retry Credits: " + adRetryCredits;
       }
-      return "No retries left. Start over at Level 1 or use the future rewarded-ad retry.";
+      return "No retries left. Start over at Level 1 or use a rewarded ad for more tries.";
     }
 
     function getRewardPromptText() {
@@ -1810,6 +1800,22 @@
 
     let nativeBannerVisible = false;
 
+    function getDistributionChannel() {
+      const bridge = getNativeBridge();
+      if (bridge && typeof bridge.getDistributionChannel === "function") {
+        try {
+          return String(bridge.getDistributionChannel() || "samsung").toLowerCase();
+        } catch (error) {
+          console.warn("GravityRunnerNative.getDistributionChannel failed", error);
+        }
+      }
+      return "samsung";
+    }
+
+    function isAptoideStoreBuild() {
+      return getDistributionChannel() === "aptoide";
+    }
+
     function callNativeBridge(methodName, fallback) {
       const bridge = getNativeBridge();
       if (bridge && typeof bridge[methodName] === "function") {
@@ -1824,31 +1830,45 @@
     }
 
     function purchaseAptoideRemoveAds30Days() {
+      if (!isAptoideStoreBuild()) {
+        purchasePrimaryRemoveAds();
+        return;
+      }
       hideRemoveAdsOffer();
       callNativeBridge("purchaseAptoideRemoveAds30Days", () => {
         showMessage("PURCHASE NEEDS STORE", 70);
       });
     }
 
-    function purchaseAptoideRemoveAdsLifetime() {
+    function purchasePrimaryRemoveAds() {
       hideRemoveAdsOffer();
-      callNativeBridge("purchaseAptoideRemoveAdsLifetime", () => {
-        callNativeBridge("purchaseRemoveAds", () => {
+      if (isAptoideStoreBuild()) {
+        callNativeBridge("purchaseAptoideRemoveAdsLifetime", () => {
           showMessage("PURCHASE NEEDS STORE", 70);
         });
+        return;
+      }
+
+      callNativeBridge("purchaseRemoveAds", () => {
+        showMessage("PURCHASE NEEDS STORE", 70);
       });
     }
 
     function restoreAptoidePurchases() {
       callNativeBridge("restoreAptoidePurchases", () => {
-        callNativeBridge("restorePurchases", () => {
-          showMessage(areAdsRemoved() ? "ADS REMOVED" : "NO PURCHASE FOUND", 60);
-        });
+        showMessage(areAdsRemoved() ? "ADS REMOVED" : "NO PURCHASE FOUND", 60);
       });
     }
 
     function restorePurchases() {
-      restoreAptoidePurchases();
+      if (isAptoideStoreBuild()) {
+        restoreAptoidePurchases();
+        return;
+      }
+
+      callNativeBridge("restorePurchases", () => {
+        showMessage(areAdsRemoved() ? "ADS REMOVED" : "NO PURCHASE FOUND", 60);
+      });
     }
 
     function areAdsRemoved() {
@@ -1905,8 +1925,16 @@
     function showRemoveAdsOffer(autoShown) {
       if (adsRemoved || running || paused) return;
       removeAdsOfferTitle.textContent = "Remove Ads";
-      removeAdsOfferBody.textContent = "Choose how you want to play Gravity Runner with ads removed.";
-      removeAds30DaysBtn.classList.remove("hiddenSoft");
+      if (isAptoideStoreBuild()) {
+        removeAdsOfferBody.textContent = "Choose how you want to play Gravity Runner with ads removed.";
+        removeAds30DaysBtn.textContent = "30 Days - $3.99";
+        removeAdsLifetimeBtn.textContent = "Forever - $9.99";
+        removeAds30DaysBtn.classList.remove("hiddenSoft");
+      } else {
+        removeAdsOfferBody.textContent = "Remove banner and interstitial ads from Gravity Runner.";
+        removeAdsLifetimeBtn.textContent = "Remove Ads";
+        removeAds30DaysBtn.classList.add("hiddenSoft");
+      }
       removeAdsLifetimeBtn.classList.remove("hiddenSoft");
       removeAdsNoThanksBtn.classList.remove("hiddenSoft");
       removeAdsDeclineBtn.classList.add("hiddenSoft");

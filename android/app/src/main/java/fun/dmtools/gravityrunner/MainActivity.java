@@ -519,9 +519,12 @@ public class MainActivity extends BridgeActivity {
     private IapHelper getSamsungIapHelper() {
         if (samsungIapHelper == null) {
             samsungIapHelper = IapHelper.getInstance(this);
-            samsungIapHelper.setOperationMode(HelperDefine.OperationMode.OPERATION_MODE_TEST);
+            HelperDefine.OperationMode operationMode = BuildConfig.DEBUG
+                ? HelperDefine.OperationMode.OPERATION_MODE_TEST
+                : HelperDefine.OperationMode.OPERATION_MODE_PRODUCTION;
+            samsungIapHelper.setOperationMode(operationMode);
             samsungIapHelper.setShowErrorDialog(false);
-            Log.i(IAP_TAG, "Samsung IAP SDK " + samsungIapHelper.getVersionName() + " initialized in test mode");
+            Log.i(IAP_TAG, "Samsung IAP SDK " + samsungIapHelper.getVersionName() + " initialized in " + operationMode + " mode");
         }
 
         return samsungIapHelper;
@@ -712,6 +715,11 @@ public class MainActivity extends BridgeActivity {
     }
 
     private class GravityRunnerNativeBridge {
+        @JavascriptInterface
+        public String getDistributionChannel() {
+            return BuildConfig.DISTRIBUTION_CHANNEL;
+        }
+
         @JavascriptInterface
         public void purchaseRemoveAds() {
             runOnUiThread(MainActivity.this::purchaseRemoveAds);
