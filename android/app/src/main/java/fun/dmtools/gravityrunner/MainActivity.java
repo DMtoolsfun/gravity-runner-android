@@ -51,6 +51,7 @@ public class MainActivity extends BridgeActivity {
     private static final String APTOIDE_TAG = "GravityRunnerAptoide";
     private static final String CHANNEL_APTOIDE = "aptoide";
     private static final String CHANNEL_SAMSUNG = "samsung";
+    private static final String CHANNEL_APKPURE = "apkpure";
     private static final String REMOVE_ADS_PRODUCT_ID = "remove_ads";
     private static final String APTOIDE_REMOVE_ADS_30_DAYS_PRODUCT_ID = "remove_ads_30_days";
     private static final String APTOIDE_REMOVE_ADS_LIFETIME_PRODUCT_ID = "remove_ads_lifetime";
@@ -84,7 +85,7 @@ public class MainActivity extends BridgeActivity {
         loadRewardedAd();
         if (isAptoideChannel()) {
             initializeAptoideBilling();
-        } else {
+        } else if (isSamsungChannel()) {
             checkRemoveAdsOwnershipOnStartup();
         }
     }
@@ -247,6 +248,10 @@ public class MainActivity extends BridgeActivity {
 
     private boolean isSamsungChannel() {
         return CHANNEL_SAMSUNG.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
+    }
+
+    private boolean isApkpureChannel() {
+        return CHANNEL_APKPURE.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
     }
 
     private void initializeAptoideBilling() {
@@ -539,6 +544,11 @@ public class MainActivity extends BridgeActivity {
             purchaseAptoideRemoveAdsLifetime();
             return;
         }
+        if (isApkpureChannel()) {
+            Log.w(IAP_TAG, "Purchase requested for APKPure ads-supported channel");
+            showIapMessage("Purchase unavailable");
+            return;
+        }
         if (!isSamsungChannel()) {
             Log.w(IAP_TAG, "Samsung purchase requested outside Samsung channel: " + BuildConfig.DISTRIBUTION_CHANNEL);
             showIapMessage("Purchase unavailable");
@@ -560,6 +570,11 @@ public class MainActivity extends BridgeActivity {
     private void restorePurchases() {
         if (isAptoideChannel()) {
             restoreAptoidePurchases();
+            return;
+        }
+        if (isApkpureChannel()) {
+            Log.w(IAP_TAG, "Restore requested for APKPure ads-supported channel");
+            showIapMessage("No purchase found");
             return;
         }
         if (!isSamsungChannel()) {

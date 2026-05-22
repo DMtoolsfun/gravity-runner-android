@@ -421,7 +421,7 @@
       <div class="box">
         <h1>Gravity Runner</h1>
         <p class="subtitle">A tiny Atari-style endless maze runner.</p>
-        <div class="versionTag" id="versionLabel">v1.0 Galaxy Store</div>
+        <div class="versionTag" id="versionLabel">v1.0</div>
         <p class="instructions" id="startStatsText">Level: 1 / Best: 0 / Runs: 0</p>
         <div class="difficultySelect" aria-label="Difficulty selection">
           <div class="difficultyTitle">Choose Speed</div>
@@ -538,6 +538,7 @@
     const resetProgressBtn = document.getElementById("resetProgressBtn");
     const removeAdsBtn = document.getElementById("removeAdsBtn");
     const restorePurchaseBtn = document.getElementById("restorePurchaseBtn");
+    const purchaseControlRow = removeAdsBtn.closest(".utilityRow");
     const startAdSlot = document.getElementById("startAdSlot");
     const gameOverTitle = document.getElementById("gameOverTitle");
     const finalScoreText = document.getElementById("finalScoreText");
@@ -561,7 +562,7 @@
     const tapHint = document.getElementById("tapHint");
     const messageFlash = document.getElementById("messageFlash");
 
-    const appVersion = "v1.0 Galaxy Store";
+    const appVersion = "v1.0";
 
     const difficultyModes = {
       beginner: { label: "BEGINNER", speedMultiplier: 1.22 },
@@ -1816,6 +1817,22 @@
       return getDistributionChannel() === "aptoide";
     }
 
+    function isApkpureStoreBuild() {
+      return getDistributionChannel() === "apkpure";
+    }
+
+    function supportsRemoveAdsPurchases() {
+      return !isApkpureStoreBuild();
+    }
+
+    function getAppVersionLabel() {
+      const channel = getDistributionChannel();
+      if (channel === "samsung") return appVersion + " Galaxy Store";
+      if (channel === "aptoide") return appVersion + " Aptoide";
+      if (channel === "apkpure") return appVersion + " APKPure";
+      return appVersion;
+    }
+
     function callNativeBridge(methodName, fallback) {
       const bridge = getNativeBridge();
       if (bridge && typeof bridge[methodName] === "function") {
@@ -1830,6 +1847,11 @@
     }
 
     function purchaseAptoideRemoveAds30Days() {
+      if (!supportsRemoveAdsPurchases()) {
+        hideRemoveAdsOffer();
+        showMessage("ADS SUPPORTED", 60);
+        return;
+      }
       if (!isAptoideStoreBuild()) {
         purchasePrimaryRemoveAds();
         return;
@@ -1842,6 +1864,10 @@
 
     function purchasePrimaryRemoveAds() {
       hideRemoveAdsOffer();
+      if (!supportsRemoveAdsPurchases()) {
+        showMessage("ADS SUPPORTED", 60);
+        return;
+      }
       if (isAptoideStoreBuild()) {
         callNativeBridge("purchaseAptoideRemoveAdsLifetime", () => {
           showMessage("PURCHASE NEEDS STORE", 70);
@@ -1861,6 +1887,10 @@
     }
 
     function restorePurchases() {
+      if (!supportsRemoveAdsPurchases()) {
+        showMessage("ADS SUPPORTED", 60);
+        return;
+      }
       if (isAptoideStoreBuild()) {
         restoreAptoidePurchases();
         return;
@@ -1872,6 +1902,7 @@
     }
 
     function areAdsRemoved() {
+      if (!supportsRemoveAdsPurchases()) return false;
       return adsRemovedLifetime || Date.now() < adsRemovedUntil;
     }
 
@@ -1923,6 +1954,7 @@
     }
 
     function showRemoveAdsOffer(autoShown) {
+      if (!supportsRemoveAdsPurchases()) return;
       if (adsRemoved || running || paused) return;
       removeAdsOfferTitle.textContent = "Remove Ads";
       if (isAptoideStoreBuild()) {
@@ -1962,6 +1994,7 @@
 
     function maybeShowRemoveAdsOffer(reason, endedLevel) {
       syncAdsRemovedState();
+      if (!supportsRemoveAdsPurchases()) return;
       if (adsRemoved || !isEligibleLevelEndScreen(reason)) return;
       if (running || paused || (!gameOver && !levelComplete)) return;
       if (Date.now() - rewardedAdCooldownAt < rewardedInterstitialBlockMs) return;
@@ -2093,9 +2126,14 @@
 
     function updatePurchaseUi() {
       syncAdsRemovedState();
+      const supportsPurchases = supportsRemoveAdsPurchases();
+      purchaseControlRow.classList.toggle("hiddenSoft", !supportsPurchases);
+      removeAdsBtn.classList.toggle("hiddenSoft", !supportsPurchases);
+      restorePurchaseBtn.classList.toggle("hiddenSoft", !supportsPurchases);
       removeAdsBtn.textContent = adsRemoved ? "Ads Removed" : "Remove Ads";
       removeAdsBtn.classList.toggle("owned", adsRemoved);
-      removeAdsBtn.disabled = adsRemoved;
+      removeAdsBtn.disabled = adsRemoved || !supportsPurchases;
+      restorePurchaseBtn.disabled = !supportsPurchases;
     }
 
     window.GravityRunnerRewards = {
@@ -2119,7 +2157,7 @@
     }
 
     function updateStartStats() {
-      versionLabel.textContent = appVersion;
+      versionLabel.textContent = getAppVersionLabel();
       startStatsText.textContent = "Level: " + currentLevel + " / " + difficultyModes[currentDifficulty].label + " / Best: " + best + " / Runs: " + totalRuns;
       updateAdSlots();
     }
