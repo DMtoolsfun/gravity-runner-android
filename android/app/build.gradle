@@ -4,6 +4,7 @@ def keystorePropertiesFile = rootProject.file('key.properties')
 def keystoreProperties = new Properties()
 def hasReleaseSigningConfig = keystorePropertiesFile.exists()
 def distributionChannel = (project.findProperty("distributionChannel") ?: "samsung").toString()
+def isDemoDistribution = distributionChannel.equalsIgnoreCase("demo")
 def aptoidePublicKey = (project.findProperty("aptoidePublicKey") ?: "").toString()
 
 // Debug builds use Google's public AdMob test IDs. Release builds use Gravity Runner production IDs.
@@ -33,6 +34,7 @@ android {
         versionCode 1
         versionName "1.0"
         buildConfigField "String", "DISTRIBUTION_CHANNEL", "\"${distributionChannel}\""
+        buildConfigField "boolean", "IS_DEMO_DISTRIBUTION", "${isDemoDistribution}"
         buildConfigField "String", "APTOIDE_PUBLIC_KEY", "\"${aptoidePublicKey.replace('\\', '\\\\').replace('\"', '\\\"')}\""
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

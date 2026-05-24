@@ -52,6 +52,7 @@ public class MainActivity extends BridgeActivity {
     private static final String CHANNEL_APTOIDE = "aptoide";
     private static final String CHANNEL_SAMSUNG = "samsung";
     private static final String CHANNEL_APKPURE = "apkpure";
+    private static final String CHANNEL_DEMO = "demo";
     private static final String REMOVE_ADS_PRODUCT_ID = "remove_ads";
     private static final String APTOIDE_REMOVE_ADS_30_DAYS_PRODUCT_ID = "remove_ads_30_days";
     private static final String APTOIDE_REMOVE_ADS_LIFETIME_PRODUCT_ID = "remove_ads_lifetime";
@@ -78,11 +79,13 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        MobileAds.initialize(this, initializationStatus -> Log.d(TAG, "Mobile Ads initialized"));
-        setupBannerContainer();
         getBridge().getWebView().addJavascriptInterface(new GravityRunnerNativeBridge(), "GravityRunnerNative");
-        loadInterstitialAd();
-        loadRewardedAd();
+        if (!isDemoChannel()) {
+            MobileAds.initialize(this, initializationStatus -> Log.d(TAG, "Mobile Ads initialized"));
+            setupBannerContainer();
+            loadInterstitialAd();
+            loadRewardedAd();
+        }
         if (isAptoideChannel()) {
             initializeAptoideBilling();
         } else if (isSamsungChannel()) {
@@ -252,6 +255,10 @@ public class MainActivity extends BridgeActivity {
 
     private boolean isApkpureChannel() {
         return CHANNEL_APKPURE.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
+    }
+
+    private boolean isDemoChannel() {
+        return BuildConfig.IS_DEMO_DISTRIBUTION || CHANNEL_DEMO.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
     }
 
     private void initializeAptoideBilling() {
@@ -540,6 +547,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void purchaseRemoveAds() {
+        if (isDemoChannel()) {
+            Log.i(IAP_TAG, "Purchase suppressed for demo channel");
+            return;
+        }
         if (isAptoideChannel()) {
             purchaseAptoideRemoveAdsLifetime();
             return;
@@ -568,6 +579,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void restorePurchases() {
+        if (isDemoChannel()) {
+            Log.i(IAP_TAG, "Restore suppressed for demo channel");
+            return;
+        }
         if (isAptoideChannel()) {
             restoreAptoidePurchases();
             return;
@@ -762,6 +777,10 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void showInterstitialAd() {
+            if (isDemoChannel()) {
+                Log.d(TAG, "Interstitial suppressed for demo channel");
+                return;
+            }
             runOnUiThread(() -> {
                 if (interstitialAd == null) {
                     Log.d(TAG, "Interstitial not loaded; requesting a new one");
@@ -775,16 +794,28 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void showRewardedContinueAd() {
+            if (isDemoChannel()) {
+                Log.d(TAG, "Rewarded continue suppressed for demo channel");
+                return;
+            }
             runOnUiThread(() -> showRewardedAd("window.GravityRunnerRewards && window.GravityRunnerRewards.grantContinue()"));
         }
 
         @JavascriptInterface
         public void showRewardedRetryAd() {
+            if (isDemoChannel()) {
+                Log.d(TAG, "Rewarded retry suppressed for demo channel");
+                return;
+            }
             runOnUiThread(() -> showRewardedAd("window.GravityRunnerRewards && window.GravityRunnerRewards.grantRetries()"));
         }
 
         @JavascriptInterface
         public void showBannerAd() {
+            if (isDemoChannel()) {
+                Log.d(TAG, "Banner suppressed for demo channel");
+                return;
+            }
             runOnUiThread(() -> {
                 if (bannerAdView == null) {
                     bannerAdView = new AdView(MainActivity.this);
@@ -804,6 +835,9 @@ public class MainActivity extends BridgeActivity {
 
         @JavascriptInterface
         public void hideBannerAd() {
+            if (isDemoChannel()) {
+                return;
+            }
             runOnUiThread(() -> {
                 if (bannerContainer != null) {
                     bannerContainer.setVisibility(View.GONE);

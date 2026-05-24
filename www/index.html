@@ -1765,6 +1765,9 @@
       if (adRetryCredits > 0) {
         return "Level " + currentLevel + " Progress: " + levelGatesCleared + "/" + getLevelGoal() + " Gates / Ad Retry Credits: " + adRetryCredits;
       }
+      if (isDemoBuild()) {
+        return "No retries left. Start over at Level 1.";
+      }
       return "No retries left. Start over at Level 1 or use a rewarded ad for more tries.";
     }
 
@@ -1775,6 +1778,9 @@
       }
       if (adRetryCredits > 0) {
         return "Reward credit active: " + adRetryCredits + " extra retry credit(s).";
+      }
+      if (isDemoBuild()) {
+        return "No retries left. Start over at Level 1.";
       }
       return "No retries left. Start over at Level 1 or use a rewarded ad for more tries.";
     }
@@ -1788,7 +1794,7 @@
 
     function updateRewardButtons() {
       const retriesLeft = getRetriesLeft();
-      const canUseReward = retriesLeft <= 0;
+      const canUseReward = retriesLeft <= 0 && !isDemoBuild();
       adActionWrap.classList.toggle("hiddenSoft", !canUseReward);
       continueAdBtn.disabled = lives > 0;
       passLevelAdBtn.disabled = false;
@@ -1821,8 +1827,12 @@
       return getDistributionChannel() === "apkpure";
     }
 
+    function isDemoBuild() {
+      return getDistributionChannel() === "demo";
+    }
+
     function supportsRemoveAdsPurchases() {
-      return !isApkpureStoreBuild();
+      return !isApkpureStoreBuild() && !isDemoBuild();
     }
 
     function getAppVersionLabel() {
@@ -1830,6 +1840,7 @@
       if (channel === "samsung") return appVersion + " Galaxy Store";
       if (channel === "aptoide") return appVersion + " Aptoide";
       if (channel === "apkpure") return appVersion + " APKPure";
+      if (channel === "demo") return appVersion + " Demo";
       return appVersion;
     }
 
@@ -1902,6 +1913,7 @@
     }
 
     function areAdsRemoved() {
+      if (isDemoBuild()) return true;
       if (!supportsRemoveAdsPurchases()) return false;
       return adsRemovedLifetime || Date.now() < adsRemovedUntil;
     }
@@ -2009,12 +2021,14 @@
     }
 
     function requestRewardedContinue() {
+      if (isDemoBuild()) return;
       callNativeBridge("showRewardedContinueAd", () => {
         showMessage("REWARD AD NEEDS SDK", 70);
       });
     }
 
     function requestRewardedRetryGrant() {
+      if (isDemoBuild()) return;
       callNativeBridge("showRewardedRetryAd", () => {
         showMessage("REWARD AD NEEDS SDK", 70);
       });
@@ -2066,6 +2080,10 @@
 
     function maybeShowInterstitial(reason, endedLevel) {
       syncAdsRemovedState();
+      if (isDemoBuild()) {
+        logInterstitialSkip("demo build");
+        return;
+      }
       if (adsRemoved) {
         logInterstitialSkip("ads removed");
         return;
@@ -2105,7 +2123,7 @@
 
     function updateAdSlots() {
       syncAdsRemovedState();
-      const hideAds = adsRemoved;
+      const hideAds = adsRemoved || isDemoBuild();
       startAdSlot.classList.toggle("hidden", hideAds || startPanel.classList.contains("hidden"));
       gameOverAdSlot.classList.toggle("hidden", hideAds || gameOverPanel.classList.contains("hidden"));
       const shouldShowNativeBanner = !hideAds && (!startPanel.classList.contains("hidden") || !gameOverPanel.classList.contains("hidden"));
