@@ -285,7 +285,7 @@ public class MainActivity extends BridgeActivity {
                     aptoideBillingReady = true;
                     Log.i(APTOIDE_TAG, "Aptoide billing ready");
                     queryAptoideProducts();
-                    restoreAptoidePurchases();
+                    restoreAptoidePurchases(false);
                 }
 
                 @Override
@@ -397,6 +397,10 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void restoreAptoidePurchases() {
+        restoreAptoidePurchases(true);
+    }
+
+    private void restoreAptoidePurchases(boolean showNotFoundMessage) {
         if (isSamsungChannel()) {
             restorePurchases();
             return;
@@ -407,7 +411,9 @@ public class MainActivity extends BridgeActivity {
             return;
         }
         if (!canUseAptoideBilling("restore")) {
-            showIapMessage("No purchase found");
+            if (showNotFoundMessage) {
+                showIapMessage("No purchase found");
+            }
             return;
         }
 
@@ -419,7 +425,9 @@ public class MainActivity extends BridgeActivity {
                 (billingResult, purchases) -> {
                     if (!isAptoideSuccess(billingResult)) {
                         Log.w(APTOIDE_TAG, "Aptoide restore query failed: " + describeAptoideResult(billingResult));
-                        showIapMessage("No purchase found");
+                        if (showNotFoundMessage) {
+                            showIapMessage("No purchase found");
+                        }
                         return;
                     }
 
@@ -432,13 +440,18 @@ public class MainActivity extends BridgeActivity {
 
                     if (!restored) {
                         Log.i(APTOIDE_TAG, "No Aptoide remove ads ownership found");
-                        showIapMessage("No purchase found");
+                        revokeRemoveAdsOwnership("Aptoide restore");
+                        if (showNotFoundMessage) {
+                            showIapMessage("No purchase found");
+                        }
                     }
                 }
             );
         } catch (RuntimeException exception) {
             Log.w(APTOIDE_TAG, "Aptoide restore failed", exception);
-            showIapMessage("No purchase found");
+            if (showNotFoundMessage) {
+                showIapMessage("No purchase found");
+            }
         }
     }
 
@@ -543,7 +556,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void checkRemoveAdsOwnershipOnStartup() {
-        queryRemoveAdsOwnership("startup");
+        queryRemoveAdsOwnership("startup", false);
     }
 
     private void purchaseRemoveAds() {
@@ -598,15 +611,19 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
-        queryRemoveAdsOwnership("restore");
+        queryRemoveAdsOwnership("restore", true);
     }
 
     private void queryRemoveAdsOwnership(String source) {
+        queryRemoveAdsOwnership(source, "restore".equals(source));
+    }
+
+    private void queryRemoveAdsOwnership(String source, boolean showNotFoundMessage) {
         try {
             boolean started = getSamsungIapHelper().getOwnedList(HelperDefine.PRODUCT_TYPE_ITEM, (error, ownedProducts) -> {
                 if (!isIapSuccess(error)) {
                     Log.w(IAP_TAG, "Owned product query failed from " + source + ": " + describeIapError(error));
-                    if ("restore".equals(source)) {
+                    if (showNotFoundMessage) {
                         showIapMessage("No purchase found");
                     }
                     return;
@@ -615,7 +632,8 @@ public class MainActivity extends BridgeActivity {
                 OwnedProductVo removeAdsProduct = findRemoveAdsOwnership(ownedProducts);
                 if (removeAdsProduct == null) {
                     Log.i(IAP_TAG, "No Samsung ownership found for " + REMOVE_ADS_PRODUCT_ID + " from " + source);
-                    if ("restore".equals(source)) {
+                    revokeRemoveAdsOwnership("Samsung " + source);
+                    if (showNotFoundMessage) {
                         showIapMessage("No purchase found");
                     }
                     return;
@@ -737,6 +755,11 @@ public class MainActivity extends BridgeActivity {
     private void grantRemoveAdsOwnership(String source) {
         Log.i(IAP_TAG, "Samsung ownership confirmed for " + REMOVE_ADS_PRODUCT_ID + " from " + source);
         evaluateJavascriptSafely("window.GravityRunnerRewards && window.GravityRunnerRewards.setAdsRemoved(true)");
+    }
+
+    private void revokeRemoveAdsOwnership(String source) {
+        Log.i(IAP_TAG, "Remove ads ownership not found from " + source + "; clearing local entitlement");
+        evaluateJavascriptSafely("window.GravityRunnerRewards && window.GravityRunnerRewards.clearAdsRemoved()");
     }
 
     private void showIapMessage(String message) {
