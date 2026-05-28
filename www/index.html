@@ -51,7 +51,9 @@
       align-items: center;
       justify-content: center;
       padding: 24px;
-      background: rgba(0, 0, 0, 0.72);
+      background:
+        radial-gradient(circle at 50% 30%, rgba(189,251,255,0.12), transparent 34%),
+        linear-gradient(rgba(0,0,0,0.78), rgba(0,0,0,0.9));
       text-align: center;
       z-index: 5;
     }
@@ -62,10 +64,12 @@
 
     .box {
       border: 4px solid #f7f7f7;
-      background: #080808;
+      background:
+        linear-gradient(180deg, rgba(189,251,255,0.08), transparent 26%),
+        #080808;
       padding: 24px;
       width: min(92vw, 520px);
-      box-shadow: 8px 8px 0 #333;
+      box-shadow: 8px 8px 0 #333, 0 0 26px rgba(189,251,255,0.18);
     }
 
     h1 {
@@ -103,7 +107,7 @@
       border: 2px solid #f7f7f7;
       padding: 5px 8px;
       background: #111;
-      box-shadow: 3px 3px 0 #333;
+      box-shadow: 3px 3px 0 #333, inset 0 0 0 1px rgba(255,255,255,0.08);
       white-space: nowrap;
     }
 
@@ -129,12 +133,17 @@
     .difficultyBtn {
       font-size: 14px;
       padding: 8px 10px;
-      box-shadow: 3px 3px 0 #6c6c6c;
+      color: #d7d7d7;
+      background: #161616;
+      outline: 2px solid #333;
+      box-shadow: 3px 3px 0 #050505;
     }
 
     .difficultyBtn.active {
       background: #bdfbff;
       color: #050505;
+      outline-color: #f7f7f7;
+      box-shadow: 3px 3px 0 #4dabff, 0 0 16px rgba(189,251,255,0.36);
     }
 
     .versionTag {
@@ -181,6 +190,7 @@
       padding: 10px 0;
       color: #bdfbff;
       font-size: 13px;
+      background: rgba(189,251,255,0.06);
     }
 
     .purchaseBtn {
@@ -272,6 +282,14 @@
       box-shadow: 5px 5px 0 #6c6c6c;
     }
 
+    button:not(:disabled) {
+      transition: transform 80ms linear, box-shadow 80ms linear, filter 120ms linear;
+    }
+
+    button:not(:disabled):hover {
+      filter: brightness(1.1);
+    }
+
     button:active {
       transform: translate(3px, 3px);
       box-shadow: 2px 2px 0 #6c6c6c;
@@ -355,7 +373,7 @@
       text-align: center;
       text-transform: uppercase;
       color: #bdfbff;
-      text-shadow: 4px 4px 0 #000;
+      text-shadow: 4px 4px 0 #000, 0 0 18px rgba(189,251,255,0.72);
       opacity: 0;
       transition: opacity 120ms linear;
       white-space: nowrap;
@@ -656,6 +674,7 @@
     let lastAnnouncedRank = "ROOKIE";
     let messageTimer = 0;
     let flashTimer = 0;
+    let transitionBurstTimer = 0;
     let slowTimer = 0;
     let breakerTimer = 0;
     let invincibleTimer = 0;
@@ -677,6 +696,9 @@
 
     let walls = [];
     let particles = [];
+    let brickChunks = [];
+    let musicTimer = null;
+    let musicStep = 0;
 
     function resize() {
       dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
@@ -736,6 +758,7 @@
       shake = 0;
       messageTimer = 0;
       flashTimer = 0;
+      transitionBurstTimer = 0;
       slowTimer = 0;
       breakerTimer = 0;
       invincibleTimer = 0;
@@ -756,6 +779,7 @@
 
       walls = [];
       particles = [];
+      brickChunks = [];
 
       // Start with breathing room before the first wall.
       let nextX = width + 340;
@@ -783,8 +807,9 @@
       pausePanel.classList.add("hidden");
       pauseBtn.classList.remove("hidden");
       tapHint.style.display = "block";
-      showMessage("LEVEL " + currentLevel, 44);
+      showMessage("WAVE " + currentLevel, 54);
       lastTime = performance.now();
+      startMusic();
     }
 
     function makeWall(x, index = 0) {
@@ -899,7 +924,9 @@
       }
 
       updateRank();
+      updateBrickChunks(scaled);
       updateParticles(scaled);
+      updateMusicState();
       updateMessage(scaled);
       checkCollision();
 
@@ -925,7 +952,7 @@
       bestGateStreak = Math.max(bestGateStreak, gateStreak);
       flashTimer = 8;
       playTone(520, 0.035, "square", 0.035);
-      popParticles(ball.x, ball.y, 8, "#bdfbff");
+      popParticles(ball.x, ball.y, 10, "#bdfbff");
 
       if (gateStreak > 0 && gateStreak % 5 === 0) {
         const bonus = settings.streakBonus * (gateStreak / 5);
@@ -952,7 +979,9 @@
       breakerTimer = 0;
       powerBarWrap.classList.add("hidden");
       flashTimer = 18;
+      transitionBurstTimer = 44;
       shake = 7;
+      stopMusic();
 
       const rounded = Math.floor(score + currentLevel * 250);
       score = rounded;
@@ -1222,7 +1251,9 @@
       flashTimer = 12;
       shake = 9;
       playTone(180, 0.08, "square", 0.055);
-      popParticles(wall.x + wall.w / 2, ball.y, 30, "#ff9f1c");
+      spawnWallChunks(wall);
+      popParticles(wall.x + wall.w / 2, ball.y, 44, "#ff9f1c");
+      popParticles(wall.x + wall.w / 2, wall.gapY, 16, "#ffe66d");
     }
 
     function hitsBlocker(wall) {
@@ -1238,6 +1269,7 @@
       running = false;
       gameOver = true;
       paused = false;
+      stopMusic();
       pauseBtn.classList.add("hidden");
       levelFailAttempts += 1;
       localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
@@ -1305,6 +1337,7 @@
       drawFlash();
       drawWalls();
       drawRewards();
+      drawBrickChunks();
       drawParticles();
       drawBall();
       drawScanlines();
@@ -1313,22 +1346,65 @@
     }
 
     function drawBackground() {
+      const time = performance.now() * 0.001;
+      const travel = (score * 0.9 + time * 34) % 48;
       ctx.fillStyle = "#050505";
       ctx.fillRect(-20, -20, width + 40, height + 40);
 
-      ctx.fillStyle = "rgba(189,251,255,0.22)";
-      const offset = (score * 0.8) % 34;
-      for (let x = -34 - offset; x < width + 34; x += 34) {
-        for (let y = 24; y < height; y += 34) {
-          if ((Math.floor(y / 34) + Math.floor(x / 34)) % 3 === 0) {
-            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
-          }
+      ctx.strokeStyle = "rgba(77,171,255,0.14)";
+      ctx.lineWidth = 1;
+      for (let x = width + 48 - travel; x > -48; x -= 48) {
+        ctx.beginPath();
+        ctx.moveTo(snap(x), 0);
+        ctx.lineTo(snap(x - width * 0.18), height);
+        ctx.stroke();
+      }
+      for (let y = 36 + ((time * 22) % 52); y < height; y += 52) {
+        const inset = Math.abs(y - height * 0.5) * 0.12;
+        ctx.strokeStyle = "rgba(189,251,255,0.1)";
+        ctx.beginPath();
+        ctx.moveTo(inset, snap(y));
+        ctx.lineTo(width - inset, snap(y));
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < 32; i++) {
+        const depth = 0.25 + (i % 5) * 0.12;
+        const x = (i * 149 + width - ((score * depth + time * 9 * depth) % (width + 80))) % (width + 80) - 40;
+        const y = 28 + ((i * 83) % Math.max(1, height - 56));
+        const twinkle = 0.12 + Math.sin(time * 1.4 + i) * 0.04;
+        const size = i % 7 === 0 ? 2 : 1;
+        ctx.fillStyle = "rgba(247,247,247," + twinkle + ")";
+        ctx.fillRect(snap(x), snap(y), size, size);
+        if (i % 11 === 0) {
+          ctx.fillStyle = "rgba(189,251,255,0.08)";
+          ctx.fillRect(snap(x - 1), snap(y), size + 2, 1);
+          ctx.fillRect(snap(x), snap(y - 1), 1, size + 2);
         }
       }
 
-      ctx.fillStyle = "#f7f7f7";
-      ctx.fillRect(0, 0, width, 4);
-      ctx.fillRect(0, height - 4, width, 4);
+      for (let i = 0; i < 10; i++) {
+        const lane = (i * 73) % Math.max(1, height - 80);
+        const x = (width - ((score * (1.2 + (i % 4) * 0.34) + time * 120 + i * 97) % (width + 120)));
+        const y = 40 + lane;
+        const len = 8 + (i % 4) * 5;
+        ctx.fillStyle = i % 5 === 0 ? "rgba(255,230,109,0.16)" : "rgba(189,251,255,0.14)";
+        ctx.fillRect(snap(x), snap(y), len, 2);
+      }
+
+      const railPulse = 0.32 + Math.sin(time * 5) * 0.08;
+      ctx.fillStyle = "rgba(189,251,255," + railPulse + ")";
+      ctx.fillRect(0, 0, width, 5);
+      ctx.fillRect(0, height - 5, width, 5);
+      ctx.fillStyle = "rgba(77,171,255,0.22)";
+      ctx.fillRect(0, 6, width, 3);
+      ctx.fillRect(0, height - 9, width, 3);
+
+      if (transitionBurstTimer > 0) {
+        ctx.fillStyle = "rgba(255,230,109," + (transitionBurstTimer / 120) + ")";
+        ctx.fillRect(0, height * 0.5 - 2, width, 4);
+        transitionBurstTimer -= 1;
+      }
     }
 
     function drawFlash() {
@@ -1339,6 +1415,7 @@
     }
 
     function drawWalls() {
+      const time = performance.now() * 0.001;
       for (const wall of walls) {
         if (wall.broken) continue;
 
@@ -1346,6 +1423,10 @@
         const w = wall.w;
         const topWallH = wall.gapY - wall.gap / 2;
         const bottomY = wall.gapY + wall.gap / 2;
+
+        ctx.fillStyle = "rgba(189,251,255,0.18)";
+        ctx.fillRect(x - 4, topWallH - 8, w + 8, 12);
+        ctx.fillRect(x - 4, bottomY - 4, w + 8, 12);
 
         ctx.fillStyle = "#f7f7f7";
         ctx.fillRect(x, 0, w, topWallH);
@@ -1364,26 +1445,46 @@
         ctx.fillStyle = "#bdfbff";
         ctx.fillRect(x, topWallH - 4, w, 4);
         ctx.fillRect(x, bottomY, w, 4);
+        ctx.fillStyle = "rgba(77,171,255,0.45)";
+        ctx.fillRect(x + 4, topWallH - 10, w - 8, 3);
+        ctx.fillRect(x + 4, bottomY + 7, w - 8, 3);
 
         if (wall.hasBlocker) {
           const blockH = 26;
           const blockY = wall.gapY + wall.blockerSide * (wall.gap * 0.24);
-          ctx.fillStyle = "#ff4d4d";
+          const pulse = 0.55 + Math.sin(time * 7 + wall.blockerOffset) * 0.18;
+          ctx.fillStyle = "rgba(255,77,77," + pulse + ")";
+          ctx.fillRect(x - 9, blockY - blockH / 2 - 4, w + 18, blockH + 8);
+          ctx.fillStyle = "#ff9f1c";
           ctx.fillRect(x - 5, blockY - blockH / 2, w + 10, blockH);
+          ctx.fillStyle = "#050505";
+          for (let stripe = x - 2; stripe < x + w + 4; stripe += 14) {
+            ctx.fillRect(stripe, blockY - blockH / 2 + 4, 6, blockH - 8);
+          }
           ctx.fillStyle = "#fff";
           ctx.fillRect(x + 6, blockY - 3, w - 12, 6);
+          ctx.fillStyle = "#ff4d4d";
+          ctx.fillRect(x + w / 2 - 5, blockY - 5, 10, 10);
         }
       }
     }
 
     function drawRewards() {
+      const time = performance.now() * 0.001;
       for (const wall of walls) {
         if (!wall.reward || wall.reward.collected || wall.broken) continue;
         const reward = wall.reward;
         const x = snap(wall.x + wall.w / 2);
-        const y = snap(reward.y + Math.sin((score * 0.03) + reward.pulse) * 2);
+        const pulse = 0.5 + Math.sin(time * 5 + reward.pulse) * 0.5;
+        const y = snap(reward.y + Math.sin((score * 0.03) + reward.pulse) * 3);
         const color = getRewardColor(reward.type);
         const label = getRewardLabel(reward.type);
+
+        ctx.globalAlpha = 0.32 + pulse * 0.18;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = reward.type === "life" ? 4 : 3;
+        ctx.strokeRect(x - reward.r - 5, y - reward.r - 5, reward.r * 2 + 10, reward.r * 2 + 10);
+        ctx.globalAlpha = 1;
 
         ctx.fillStyle = color;
         ctx.fillRect(x - reward.r, y - reward.r + 3, reward.r * 2, reward.r * 2 - 6);
@@ -1391,6 +1492,10 @@
 
         ctx.fillStyle = "#fff";
         ctx.fillRect(x - 3, y - reward.r + 2, 6, 4);
+        if (reward.type === "life") {
+          ctx.fillRect(x - 4, y - 13, 8, 26);
+          ctx.fillRect(x - 13, y - 4, 26, 8);
+        }
 
         ctx.fillStyle = "#050505";
         ctx.font = "900 17px Courier New";
@@ -1423,32 +1528,114 @@
       const hasBreaker = breakerTimer > 0;
       const hasSlow = slowTimer > 0;
       const isInvincible = invincibleTimer > 0;
+      const tilt = clamp(ball.vy / 9, -0.45, 0.45);
+      const time = performance.now() * 0.001;
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(tilt);
+
+      const thrust = pressing ? 1 : 0.45;
+      ctx.fillStyle = "rgba(77,171,255," + (0.22 + thrust * 0.26) + ")";
+      ctx.fillRect(-r - 18, -6, 18 + thrust * 8, 12);
+      ctx.fillStyle = "#ff9f1c";
+      ctx.fillRect(-r - 9, -3, 10 + thrust * 5, 6);
 
       ctx.fillStyle = isInvincible && Math.floor(invincibleTimer / 6) % 2 === 0 ? "#ff4d4d" : hasBreaker ? "#ff9f1c" : "#f7f7f7";
-      ctx.fillRect(x - r, y - r + 4, r * 2, r * 2 - 8);
-      ctx.fillRect(x - r + 4, y - r, r * 2 - 8, r * 2);
+      ctx.fillRect(-r, -r + 4, r * 2, r * 2 - 8);
+      ctx.fillRect(-r + 4, -r, r * 2 - 8, r * 2);
+      ctx.fillRect(r - 1, -6, 8, 12);
 
       ctx.fillStyle = hasBreaker ? "#fff" : hasSlow ? "#4dabff" : "#bdfbff";
-      ctx.fillRect(x - 4, y - r + 3, 8, 5);
-      ctx.fillRect(x - r + 3, y - 4, 5, 8);
+      ctx.fillRect(-4, -r + 3, 8, 5);
+      ctx.fillRect(-r + 3, -4, 5, 8);
+      ctx.fillRect(r - 1, -3, 6, 6);
 
       ctx.fillStyle = "#050505";
-      ctx.fillRect(x + 3, y - 4, 4, 4);
+      ctx.fillRect(3, -4, 4, 4);
 
       if (hasBreaker || isInvincible) {
-        ctx.strokeStyle = isInvincible ? "#ff4d4d" : "#ff9f1c";
+        const shimmer = isInvincible ? 0.45 + Math.sin(time * 18) * 0.18 : 0.72;
+        ctx.globalAlpha = shimmer;
+        ctx.strokeStyle = isInvincible ? "#bdfbff" : "#ff9f1c";
         ctx.lineWidth = 3;
-        ctx.strokeRect(x - r - 5, y - r - 5, r * 2 + 10, r * 2 + 10);
+        ctx.strokeRect(-r - 6, -r - 6, r * 2 + 14, r * 2 + 12);
+        ctx.globalAlpha = 1;
       }
+      ctx.restore();
+    }
+
+    function spawnWallChunks(wall) {
+      const topWallBottom = wall.gapY - wall.gap / 2;
+      const bottomWallTop = wall.gapY + wall.gap / 2;
+      const impactY = ball.y < topWallBottom ? clamp(ball.y, 14, topWallBottom - 8) :
+        ball.y > bottomWallTop ? clamp(ball.y, bottomWallTop + 8, height - 14) :
+        (ball.y < wall.gapY ? topWallBottom : bottomWallTop);
+      const impactX = clamp(ball.x, wall.x + 5, wall.x + wall.w - 5);
+      const count = 24;
+
+      for (let i = 0; i < count; i++) {
+        const fromEdge = i % 4 === 0;
+        const x = fromEdge ? wall.x + Math.random() * wall.w : impactX + (Math.random() - 0.5) * wall.w;
+        const y = fromEdge ? (Math.random() < 0.5 ? topWallBottom : bottomWallTop) : impactY + (Math.random() - 0.5) * 34;
+        const angle = Math.atan2(y - ball.y, x - ball.x) + (Math.random() - 0.5) * 1.4;
+        const speed = 2.2 + Math.random() * 4.4;
+        brickChunks.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed - currentMazeSpeed * 0.35,
+          vy: Math.sin(angle) * speed + (Math.random() - 0.5) * 2.2,
+          w: 5 + Math.random() * 10,
+          h: 3 + Math.random() * 6,
+          life: 28 + Math.random() * 18,
+          maxLife: 46,
+          rot: Math.random() * Math.PI,
+          spin: (Math.random() - 0.5) * 0.28,
+          color: i % 5 === 0 ? "#ffe66d" : i % 3 === 0 ? "#bdfbff" : "#f7f7f7"
+        });
+      }
+
+      if (brickChunks.length > 96) {
+        brickChunks.splice(0, brickChunks.length - 96);
+      }
+    }
+
+    function updateBrickChunks(scaled) {
+      for (const chunk of brickChunks) {
+        chunk.x += chunk.vx * scaled;
+        chunk.y += chunk.vy * scaled;
+        chunk.vy += 0.08 * scaled;
+        chunk.rot += chunk.spin * scaled;
+        chunk.life -= scaled;
+      }
+      brickChunks = brickChunks.filter(chunk => chunk.life > 0);
+    }
+
+    function drawBrickChunks() {
+      for (const chunk of brickChunks) {
+        const alpha = clamp(chunk.life / chunk.maxLife, 0, 0.9);
+        ctx.save();
+        ctx.translate(snap(chunk.x), snap(chunk.y));
+        ctx.rotate(chunk.rot);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = chunk.color;
+        ctx.fillRect(-chunk.w / 2, -chunk.h / 2, chunk.w, chunk.h);
+        ctx.fillStyle = "rgba(5,5,5,0.28)";
+        ctx.fillRect(-chunk.w / 2 + 1, -chunk.h / 2 + 1, Math.max(1, chunk.w - 2), 1);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
     }
 
     function popParticles(x, y, count, color = "#bdfbff") {
       for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1.5 + Math.random() * 5;
         particles.push({
           x,
           y,
-          vx: (Math.random() - 0.5) * 5,
-          vy: (Math.random() - 0.5) * 5,
+          vx: Math.cos(angle) * speed - currentMazeSpeed * 0.18,
+          vy: Math.sin(angle) * speed,
           life: 22 + Math.random() * 18,
           size: 2 + Math.random() * 4,
           color
@@ -1469,7 +1656,9 @@
       for (const p of particles) {
         ctx.fillStyle = p.color || "#bdfbff";
         ctx.globalAlpha = clamp(p.life / 34, 0, 1);
-        ctx.fillRect(snap(p.x), snap(p.y), p.size, p.size);
+        ctx.fillRect(snap(p.x), snap(p.y), p.size + 2, p.size);
+        ctx.globalAlpha *= 0.35;
+        ctx.fillRect(snap(p.x - p.vx * 1.5), snap(p.y - p.vy * 1.5), p.size + 6, 1);
       }
       ctx.globalAlpha = 1;
     }
@@ -1523,6 +1712,60 @@
       osc.stop(audioCtx.currentTime + duration);
     }
 
+    function updateMusicState() {
+      if (running && !gameOver && !levelComplete && !paused && soundEnabled) {
+        startMusic();
+      } else {
+        stopMusic();
+      }
+    }
+
+    function startMusic() {
+      if (musicTimer || !soundEnabled || !running || gameOver || levelComplete || paused) return;
+      initAudio();
+      if (!audioCtx) return;
+      musicStep = musicStep % 16;
+      scheduleMusicStep();
+    }
+
+    function stopMusic() {
+      if (musicTimer) {
+        clearTimeout(musicTimer);
+        musicTimer = null;
+      }
+    }
+
+    function scheduleMusicStep() {
+      if (!soundEnabled || !running || gameOver || levelComplete || paused || !audioCtx) {
+        stopMusic();
+        return;
+      }
+
+      const notes = [392, 0, 523.25, 0, 587.33, 0, 523.25, 659.25, 392, 0, 493.88, 0, 587.33, 0, 523.25, 0];
+      const bass = [196, 0, 0, 0, 261.63, 0, 0, 0, 293.66, 0, 0, 0, 261.63, 0, 0, 0];
+      const step = musicStep % notes.length;
+      if (notes[step]) playMusicNote(notes[step], 0.105, "triangle", 0.018);
+      if (bass[step]) playMusicNote(bass[step], 0.13, "square", 0.008);
+      musicStep += 1;
+      musicTimer = setTimeout(scheduleMusicStep, 155);
+    }
+
+    function playMusicNote(freq, duration, type, volume) {
+      if (!audioCtx || !soundEnabled) return;
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + duration + 0.02);
+    }
+
     function beginRunWithInputHeld() {
       resetGame();
       setPressing(true);
@@ -1532,6 +1775,7 @@
       if (!running || gameOver || levelComplete || paused) return;
       paused = true;
       pressing = false;
+      stopMusic();
       pauseStatsText.textContent = "Level " + currentLevel + " / Gates " + levelGatesCleared + "/" + getLevelGoal() + " / Lives " + lives;
       pausePanel.classList.remove("hidden");
       pauseBtn.classList.add("hidden");
@@ -1544,6 +1788,7 @@
       pausePanel.classList.add("hidden");
       pauseBtn.classList.remove("hidden");
       lastTime = performance.now();
+      startMusic();
       showMessage("RUN", 24);
     }
 
@@ -1551,6 +1796,7 @@
       paused = false;
       running = false;
       pressing = false;
+      stopMusic();
       pausePanel.classList.add("hidden");
       pauseBtn.classList.add("hidden");
       startPanel.classList.remove("hidden");
@@ -1591,6 +1837,7 @@
     soundToggleBtn.addEventListener("click", () => {
       soundEnabled = !soundEnabled;
       localStorage.setItem("gravityRunnerSound", soundEnabled ? "on" : "off");
+      updateMusicState();
       updateSoundButton();
       showMessage(soundEnabled ? "SOUND ON" : "SOUND OFF", 34);
     });
