@@ -49,6 +49,7 @@ public class MainActivity extends BridgeActivity {
     private static final String TAG = "GravityRunnerAds";
     private static final String IAP_TAG = "GravityRunnerIAP";
     private static final String APTOIDE_TAG = "GravityRunnerAptoide";
+    private static final String CHANNEL_PLAY = "play";
     private static final String CHANNEL_APTOIDE = "aptoide";
     private static final String CHANNEL_SAMSUNG = "samsung";
     private static final String CHANNEL_APKPURE = "apkpure";
@@ -247,6 +248,10 @@ public class MainActivity extends BridgeActivity {
 
     private boolean isAptoideChannel() {
         return CHANNEL_APTOIDE.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
+    }
+
+    private boolean isPlayChannel() {
+        return CHANNEL_PLAY.equalsIgnoreCase(BuildConfig.DISTRIBUTION_CHANNEL);
     }
 
     private boolean isSamsungChannel() {
@@ -573,6 +578,11 @@ public class MainActivity extends BridgeActivity {
             showIapMessage("Purchase unavailable");
             return;
         }
+        if (isPlayChannel()) {
+            Log.i(IAP_TAG, "Purchase unavailable for Google Play ads-supported channel");
+            showIapMessage("Purchase unavailable");
+            return;
+        }
         if (!isSamsungChannel()) {
             Log.w(IAP_TAG, "Samsung purchase requested outside Samsung channel: " + BuildConfig.DISTRIBUTION_CHANNEL);
             showIapMessage("Purchase unavailable");
@@ -602,6 +612,11 @@ public class MainActivity extends BridgeActivity {
         }
         if (isApkpureChannel()) {
             Log.w(IAP_TAG, "Restore requested for APKPure ads-supported channel");
+            showIapMessage("No purchase found");
+            return;
+        }
+        if (isPlayChannel()) {
+            Log.i(IAP_TAG, "Restore unavailable for Google Play ads-supported channel");
             showIapMessage("No purchase found");
             return;
         }
