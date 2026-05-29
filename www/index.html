@@ -30,11 +30,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      background:
-        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
-        #050505;
-      background-size: 22px 22px;
+      background: #050505;
     }
 
     canvas {
@@ -70,6 +66,11 @@
       padding: 24px;
       width: min(92vw, 520px);
       box-shadow: 8px 8px 0 #333, 0 0 26px rgba(189,251,255,0.18);
+    }
+
+    #startPanel .box {
+      max-height: calc(100dvh - 24px);
+      overflow-y: auto;
     }
 
     h1 {
@@ -147,7 +148,7 @@
     }
 
     .versionTag {
-      display: inline-block;
+      display: none;
       border: 2px solid #bdfbff;
       color: #bdfbff;
       padding: 5px 8px;
@@ -252,6 +253,34 @@
       color: #050505;
     }
 
+    .tutorialList {
+      margin: 16px 0;
+      color: #ddd;
+      font-size: clamp(14px, 3vw, 17px);
+      line-height: 1.6;
+      text-align: left;
+    }
+
+    .tutorialLegal {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 14px 0 18px;
+      color: #ddd;
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: left;
+    }
+
+    .tutorialLegal input {
+      flex: 0 0 auto;
+      margin-top: 2px;
+    }
+
+    .tutorialLegal a {
+      color: #bdfbff;
+    }
+
     .adSlot {
       display: none;
     }
@@ -266,6 +295,7 @@
 
     .yellow { color: #ffe66d; }
     .blue { color: #4dabff; }
+    .green { color: #36d95f; }
     .orange { color: #ff9f1c; }
     .red { color: #ff4d4d; }
 
@@ -293,6 +323,11 @@
     button:active {
       transform: translate(3px, 3px);
       box-shadow: 2px 2px 0 #6c6c6c;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
     }
 
     #hud {
@@ -410,6 +445,38 @@
         margin: 8px 0 12px;
       }
     }
+
+    @media (max-height: 700px) {
+      #startPanel {
+        padding: 12px;
+      }
+      #startPanel .box {
+        padding: 16px;
+      }
+      #startPanel h1 {
+        font-size: clamp(30px, 7vw, 44px);
+        margin-bottom: 8px;
+      }
+      #startPanel .subtitle {
+        line-height: 1.3;
+        margin-bottom: 10px;
+      }
+      #startPanel .instructions {
+        line-height: 1.35;
+        margin: 8px 0 12px;
+      }
+      #startPanel .difficultySelect,
+      #startPanel .utilityRow {
+        margin: 8px 0 10px;
+      }
+      #startPanel .legend {
+        margin: 8px 0 12px;
+      }
+      #startPanel button {
+        padding-top: 10px;
+        padding-bottom: 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -458,13 +525,13 @@
           <button id="restorePurchaseBtn" class="utilityBtn restoreBtn" type="button">Restore</button>
         </div>
         <p class="instructions">
-          Hold the screen, mouse, or SPACEBAR to float up.<br />
-          Let go to drop.<br />
-          Clear each level by surviving the required gates. Lose all lives and retry that same level.
+          Hold to rise. Release to fall.<br />
+          Clear the maze to finish the level.
         </p>
         <div class="legend" aria-label="Power ball guide">
           <span class="rewardPill yellow">+ POINTS</span>
           <span class="rewardPill blue">S SLOW</span>
+          <span class="rewardPill green">F FAST</span>
           <span class="rewardPill orange">B BREAK</span>
           <span class="rewardPill red">L LIFE</span>
         </div>
@@ -508,6 +575,26 @@
           <button id="restartLevelBtn" class="utilityBtn" type="button">Restart Level</button>
           <button id="quitToMenuBtn" class="utilityBtn danger" type="button">Menu</button>
         </div>
+      </div>
+    </section>
+
+    <section id="tutorialPanel" class="panel hidden" aria-modal="true" role="dialog">
+      <div class="box">
+        <h1>How to Play</h1>
+        <p class="subtitle">Level 1 starts after this quick setup.</p>
+        <div class="tutorialList">
+          <div>Tap / hold = up</div>
+          <div>Release = down</div>
+          <div>Get through the maze</div>
+        </div>
+        <label class="tutorialLegal">
+          <input id="legalAcceptCheck" type="checkbox" />
+          <span>
+            I accept the Gravity Runner Terms and
+            <a href="https://dmtools.fun/gravity-runner-privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.
+          </span>
+        </label>
+        <button id="tutorialContinueBtn" type="button" disabled>Start Level 1</button>
       </div>
     </section>
 
@@ -577,10 +664,14 @@
     const removeAdsNoThanksBtn = document.getElementById("removeAdsNoThanksBtn");
     const removeAdsDeclineBtn = document.getElementById("removeAdsDeclineBtn");
     const removeAdsTakeDealBtn = document.getElementById("removeAdsTakeDealBtn");
+    const tutorialPanel = document.getElementById("tutorialPanel");
+    const legalAcceptCheck = document.getElementById("legalAcceptCheck");
+    const tutorialContinueBtn = document.getElementById("tutorialContinueBtn");
     const tapHint = document.getElementById("tapHint");
     const messageFlash = document.getElementById("messageFlash");
 
     const appVersion = "v1.0";
+    const tutorialAcceptedKey = "gravityRunnerTutorialAccepted";
 
     const difficultyModes = {
       beginner: { label: "BEGINNER", speedMultiplier: 1.22 },
@@ -593,12 +684,12 @@
     // Next 3 levels = 15 gates each, tighter gates and faster speed.
     // After level 6, the game keeps generating longer champion levels.
     const levelPlan = [
-      { gates: 10, speed: 2.25, gap: 310, spacing: 680, blockers: 0.00, rewards: 0.26, label: "Training Run" },
-      { gates: 10, speed: 2.45, gap: 295, spacing: 640, blockers: 0.00, rewards: 0.30, label: "Easy Drift" },
-      { gates: 10, speed: 2.65, gap: 280, spacing: 600, blockers: 0.03, rewards: 0.32, label: "Gate Runner" },
-      { gates: 15, speed: 2.95, gap: 255, spacing: 560, blockers: 0.05, rewards: 0.34, label: "Tighter Lines" },
-      { gates: 15, speed: 3.25, gap: 235, spacing: 520, blockers: 0.08, rewards: 0.36, label: "Fast Maze" },
-      { gates: 15, speed: 3.55, gap: 215, spacing: 480, blockers: 0.12, rewards: 0.38, label: "Arcade Test" }
+      { gates: 10, speed: 2.25, gap: 310, spacing: 680, blockers: 0.00, rewards: 0.34, label: "Training Run" },
+      { gates: 10, speed: 2.45, gap: 295, spacing: 640, blockers: 0.00, rewards: 0.38, label: "Easy Drift" },
+      { gates: 10, speed: 2.65, gap: 280, spacing: 600, blockers: 0.03, rewards: 0.40, label: "Gate Runner" },
+      { gates: 15, speed: 2.95, gap: 255, spacing: 560, blockers: 0.05, rewards: 0.42, label: "Tighter Lines" },
+      { gates: 15, speed: 3.25, gap: 235, spacing: 520, blockers: 0.08, rewards: 0.44, label: "Fast Maze" },
+      { gates: 15, speed: 3.55, gap: 215, spacing: 480, blockers: 0.12, rewards: 0.46, label: "Arcade Test" }
     ];
 
     // Easy tuning knobs. Change these to adjust the feel of the game.
@@ -614,6 +705,8 @@
       spacingTightenPerGate: 2.3,
       slowMultiplier: 0.58,
       slowDuration: 330,
+      speedMultiplier: 1.42,
+      speedDuration: 300,
       breakerDuration: 400,
       breakerWallBonus: 1500,
       invincibleDuration: 95,
@@ -629,6 +722,11 @@
       wallWidth: 54,
       minGap: 165,
       minSpacing: 360,
+      movingGateStartLevel: 6,
+      movingGateBaseSpeed: 0.72,
+      movingGateSpeedStep: 0.34,
+      movingGateSpeedLevels: 4,
+      movingGateRange: 42,
       ballRadius: 14,
       rewardRadius: 25,
       pixelSnap: true
@@ -656,6 +754,7 @@
     let currentDifficulty = localStorage.getItem("gravityRunnerDifficulty") || "beginner";
     if (!difficultyModes[currentDifficulty]) currentDifficulty = "beginner";
     let soundEnabled = localStorage.getItem("gravityRunnerSound") !== "off";
+    let tutorialAccepted = localStorage.getItem(tutorialAcceptedKey) === "true";
     let adsRemovedLifetime = localStorage.getItem("gravityRunnerAdsRemoved") === "true";
     let adsRemovedUntil = Number(localStorage.getItem("gravityRunnerAdsRemovedUntil") || 0);
     let adsRemoved = areAdsRemoved();
@@ -676,6 +775,7 @@
     let flashTimer = 0;
     let transitionBurstTimer = 0;
     let slowTimer = 0;
+    let speedTimer = 0;
     let breakerTimer = 0;
     let invincibleTimer = 0;
     let gateBounceCooldown = 0;
@@ -721,9 +821,15 @@
         gap: Math.max(175, 215 - extra * 5),
         spacing: Math.max(390, 480 - extra * 8),
         blockers: Math.min(0.18, 0.12 + extra * 0.01),
-        rewards: Math.min(0.42, 0.38 + extra * 0.005),
+        rewards: Math.min(0.50, 0.46 + extra * 0.005),
         label: "Champion Run"
       };
+    }
+
+    function getGateMoveSpeed(levelNum = currentLevel) {
+      if (levelNum < settings.movingGateStartLevel) return 0;
+      const milestone = Math.floor((levelNum - settings.movingGateStartLevel) / settings.movingGateSpeedLevels);
+      return settings.movingGateBaseSpeed + milestone * settings.movingGateSpeedStep;
     }
 
     function getLevelGoal() {
@@ -760,6 +866,7 @@
       flashTimer = 0;
       transitionBurstTimer = 0;
       slowTimer = 0;
+      speedTimer = 0;
       breakerTimer = 0;
       invincibleTimer = 0;
       gateBounceCooldown = 0;
@@ -805,6 +912,7 @@
       startPanel.classList.add("hidden");
       gameOverPanel.classList.add("hidden");
       pausePanel.classList.add("hidden");
+      tutorialPanel.classList.add("hidden");
       pauseBtn.classList.remove("hidden");
       tapHint.style.display = "block";
       showMessage("WAVE " + currentLevel, 54);
@@ -824,9 +932,11 @@
 
       const hasBlocker = Math.random() < config.blockers;
       const blockerSide = Math.random() < 0.5 ? -1 : 1;
+      const moveSpeed = getGateMoveSpeed();
+      const moveRange = moveSpeed > 0 ? Math.min(settings.movingGateRange, Math.max(16, (height - gap - margin * 2) * 0.24)) : 0;
 
       // Colored reward balls sometimes appear inside gates.
-      // Yellow = points, blue = slow maze, orange = wall breaker, red = extra life.
+      // Yellow = points, blue = slow maze, green = fast maze, orange = wall breaker, red = extra life.
       let reward = null;
       const rewardAllowed = levelGatesCleared > 1 || index > 2;
       if (rewardAllowed && Math.random() < config.rewards) {
@@ -843,6 +953,10 @@
         hasBlocker,
         blockerSide,
         blockerOffset: Math.random() * 1000,
+        baseGapY: gapY,
+        movePhase: Math.random() * Math.PI * 2,
+        moveSpeed,
+        moveRange,
         reward
       };
     }
@@ -850,9 +964,11 @@
     function makeReward(gapY, gap) {
       const type = pickRewardType();
       const safeOffset = gap * 0.22;
+      const offsetY = (Math.random() - 0.5) * safeOffset;
       return {
         type,
-        y: gapY + (Math.random() - 0.5) * safeOffset,
+        y: gapY + offsetY,
+        offsetY,
         r: settings.rewardRadius,
         collected: false,
         pulse: Math.random() * 1000
@@ -861,9 +977,10 @@
 
     function pickRewardType() {
       const roll = Math.random();
-      if (roll < 0.38) return "points";
-      if (roll < 0.66) return "slow";
-      if (roll < 0.90) return "breaker";
+      if (roll < 0.32) return "points";
+      if (roll < 0.55) return "slow";
+      if (roll < 0.75) return "speed";
+      if (roll < 0.93) return "breaker";
       return "life";
     }
 
@@ -879,6 +996,16 @@
       return Math.max(settings.minSpacing, config.spacing - levelGatesCleared * settings.spacingTightenPerGate);
     }
 
+    function updateWallMotion(wall, scaled) {
+      if (!wall.moveSpeed) return;
+      const t = performance.now() * 0.001 * wall.moveSpeed + wall.movePhase;
+      const nextGapY = wall.baseGapY + Math.sin(t) * wall.moveRange;
+      wall.gapY = clamp(nextGapY, 52 + wall.gap / 2, height - 52 - wall.gap / 2);
+      if (wall.reward && !wall.reward.collected) {
+        wall.reward.y = wall.gapY + wall.reward.offsetY;
+      }
+    }
+
     function update(dt) {
       if (!running || gameOver || levelComplete || paused) return;
 
@@ -886,7 +1013,7 @@
       updatePowerTimers(scaled);
 
       const baseSpeed = getSpeed();
-      currentMazeSpeed = slowTimer > 0 ? baseSpeed * settings.slowMultiplier : baseSpeed;
+      currentMazeSpeed = slowTimer > 0 ? baseSpeed * settings.slowMultiplier : speedTimer > 0 ? baseSpeed * settings.speedMultiplier : baseSpeed;
       const speed = currentMazeSpeed * scaled;
       score += speed * 0.72;
 
@@ -897,7 +1024,8 @@
         const floatRatio = releaseFloatTimer / settings.releaseFloatFrames;
         const softenedGravity = settings.gravity * lerp(1, 0.18, floatRatio);
         const floatLift = settings.releaseFloatLift * floatRatio;
-        ball.vy += (softenedGravity + floatLift) * scaled;
+        const floatAccel = softenedGravity + floatLift;
+        ball.vy += floatAccel * scaled;
         releaseFloatTimer -= scaled;
       } else {
         ball.vy += settings.gravity * scaled;
@@ -908,6 +1036,7 @@
 
       for (const wall of walls) {
         wall.x -= speed;
+        updateWallMotion(wall, scaled);
         if (!wall.passed && wall.x + wall.w < ball.x) {
           clearGate(wall);
         }
@@ -976,6 +1105,7 @@
       pauseBtn.classList.add("hidden");
       gateStreak = 0;
       slowTimer = 0;
+      speedTimer = 0;
       breakerTimer = 0;
       powerBarWrap.classList.add("hidden");
       flashTimer = 18;
@@ -1030,6 +1160,7 @@
 
     function updatePowerTimers(scaled) {
       if (slowTimer > 0) slowTimer = Math.max(0, slowTimer - scaled);
+      if (speedTimer > 0) speedTimer = Math.max(0, speedTimer - scaled);
       if (breakerTimer > 0) breakerTimer = Math.max(0, breakerTimer - scaled);
       if (invincibleTimer > 0) invincibleTimer = Math.max(0, invincibleTimer - scaled);
       if (gateBounceCooldown > 0) gateBounceCooldown = Math.max(0, gateBounceCooldown - scaled);
@@ -1047,6 +1178,12 @@
         powerText.textContent = "SLOW " + Math.ceil(slowTimer / 60);
         powerBarWrap.classList.remove("hidden");
         powerBar.style.background = "#4dabff";
+        powerBar.style.transform = "scaleX(" + ratio + ")";
+      } else if (speedTimer > 0) {
+        const ratio = speedTimer / settings.speedDuration;
+        powerText.textContent = "FAST " + Math.ceil(speedTimer / 60);
+        powerBarWrap.classList.remove("hidden");
+        powerBar.style.background = "#36d95f";
         powerBar.style.transform = "scaleX(" + ratio + ")";
       } else {
         powerText.textContent = gateStreak > 0 ? "STREAK " + gateStreak : "NONE";
@@ -1077,9 +1214,18 @@
 
       if (reward.type === "slow") {
         slowTimer = settings.slowDuration;
+        speedTimer = 0;
         showMessage("SLOW MAZE", 48);
         playTone(420, 0.09, "triangle", 0.055);
         popParticles(x, y, 18, "#4dabff");
+      }
+
+      if (reward.type === "speed") {
+        speedTimer = settings.speedDuration;
+        slowTimer = 0;
+        showMessage("FAST MAZE", 48);
+        playTone(880, 0.08, "triangle", 0.055);
+        popParticles(x, y, 18, "#36d95f");
       }
 
       if (reward.type === "breaker") {
@@ -1223,6 +1369,7 @@
       lives -= 1;
       gateStreak = 0;
       slowTimer = 0;
+      speedTimer = 0;
       breakerTimer = 0;
       invincibleTimer = settings.invincibleDuration;
       shake = 13;
@@ -1347,26 +1494,8 @@
 
     function drawBackground() {
       const time = performance.now() * 0.001;
-      const travel = (score * 0.9 + time * 34) % 48;
       ctx.fillStyle = "#050505";
       ctx.fillRect(-20, -20, width + 40, height + 40);
-
-      ctx.strokeStyle = "rgba(77,171,255,0.14)";
-      ctx.lineWidth = 1;
-      for (let x = width + 48 - travel; x > -48; x -= 48) {
-        ctx.beginPath();
-        ctx.moveTo(snap(x), 0);
-        ctx.lineTo(snap(x - width * 0.18), height);
-        ctx.stroke();
-      }
-      for (let y = 36 + ((time * 22) % 52); y < height; y += 52) {
-        const inset = Math.abs(y - height * 0.5) * 0.12;
-        ctx.strokeStyle = "rgba(189,251,255,0.1)";
-        ctx.beginPath();
-        ctx.moveTo(inset, snap(y));
-        ctx.lineTo(width - inset, snap(y));
-        ctx.stroke();
-      }
 
       for (let i = 0; i < 32; i++) {
         const depth = 0.25 + (i % 5) * 0.12;
@@ -1509,6 +1638,7 @@
 
     function getRewardColor(type) {
       if (type === "slow") return "#4dabff";
+      if (type === "speed") return "#36d95f";
       if (type === "breaker") return "#ff9f1c";
       if (type === "life") return "#ff4d4d";
       return "#ffe66d";
@@ -1516,6 +1646,7 @@
 
     function getRewardLabel(type) {
       if (type === "slow") return "S";
+      if (type === "speed") return "F";
       if (type === "breaker") return "B";
       if (type === "life") return "L";
       return "+";
@@ -1527,39 +1658,49 @@
       const r = ball.r;
       const hasBreaker = breakerTimer > 0;
       const hasSlow = slowTimer > 0;
+      const hasSpeed = speedTimer > 0;
       const isInvincible = invincibleTimer > 0;
-      const tilt = clamp(ball.vy / 9, -0.45, 0.45);
       const time = performance.now() * 0.001;
 
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(tilt);
 
-      const thrust = pressing ? 1 : 0.45;
-      ctx.fillStyle = "rgba(77,171,255," + (0.22 + thrust * 0.26) + ")";
-      ctx.fillRect(-r - 18, -6, 18 + thrust * 8, 12);
-      ctx.fillStyle = "#ff9f1c";
-      ctx.fillRect(-r - 9, -3, 10 + thrust * 5, 6);
+      const baseColor = isInvincible && Math.floor(invincibleTimer / 6) % 2 === 0 ? "#ff4d4d" : hasBreaker ? "#ff9f1c" : "#f7f7f7";
+      const accentColor = hasBreaker ? "#fff" : hasSlow ? "#4dabff" : hasSpeed ? "#36d95f" : "#bdfbff";
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
 
-      ctx.fillStyle = isInvincible && Math.floor(invincibleTimer / 6) % 2 === 0 ? "#ff4d4d" : hasBreaker ? "#ff9f1c" : "#f7f7f7";
-      ctx.fillRect(-r, -r + 4, r * 2, r * 2 - 8);
-      ctx.fillRect(-r + 4, -r, r * 2 - 8, r * 2);
-      ctx.fillRect(r - 1, -6, 8, 12);
+      ctx.fillStyle = "rgba(5,5,5,0.24)";
+      ctx.beginPath();
+      ctx.arc(4, 5, r * 0.72, 0, Math.PI * 2);
+      ctx.fill();
 
-      ctx.fillStyle = hasBreaker ? "#fff" : hasSlow ? "#4dabff" : "#bdfbff";
-      ctx.fillRect(-4, -r + 3, 8, 5);
-      ctx.fillRect(-r + 3, -4, 5, 8);
-      ctx.fillRect(r - 1, -3, 6, 6);
+      ctx.fillStyle = baseColor;
+      ctx.beginPath();
+      ctx.arc(-2, -2, r * 0.84, 0, Math.PI * 2);
+      ctx.fill();
 
-      ctx.fillStyle = "#050505";
-      ctx.fillRect(3, -4, 4, 4);
+      ctx.fillStyle = accentColor;
+      ctx.beginPath();
+      ctx.arc(-5, -6, r * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = "#050505";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.stroke();
 
       if (hasBreaker || isInvincible) {
         const shimmer = isInvincible ? 0.45 + Math.sin(time * 18) * 0.18 : 0.72;
         ctx.globalAlpha = shimmer;
         ctx.strokeStyle = isInvincible ? "#bdfbff" : "#ff9f1c";
         ctx.lineWidth = 3;
-        ctx.strokeRect(-r - 6, -r - 6, r * 2 + 14, r * 2 + 12);
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 5, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.globalAlpha = 1;
       }
       ctx.restore();
@@ -1741,13 +1882,13 @@
         return;
       }
 
-      const notes = [392, 0, 523.25, 0, 587.33, 0, 523.25, 659.25, 392, 0, 493.88, 0, 587.33, 0, 523.25, 0];
-      const bass = [196, 0, 0, 0, 261.63, 0, 0, 0, 293.66, 0, 0, 0, 261.63, 0, 0, 0];
+      const notes = [392, 0, 523.25, 587.33, 659.25, 0, 587.33, 523.25, 493.88, 0, 587.33, 659.25, 783.99, 659.25, 587.33, 0];
+      const bass = [196, 0, 0, 246.94, 261.63, 0, 0, 293.66, 246.94, 0, 0, 261.63, 293.66, 0, 261.63, 0];
       const step = musicStep % notes.length;
-      if (notes[step]) playMusicNote(notes[step], 0.105, "triangle", 0.018);
-      if (bass[step]) playMusicNote(bass[step], 0.13, "square", 0.008);
+      if (notes[step]) playMusicNote(notes[step], 0.13, "triangle", 0.017);
+      if (bass[step]) playMusicNote(bass[step], 0.16, "sine", 0.012);
       musicStep += 1;
-      musicTimer = setTimeout(scheduleMusicStep, 155);
+      musicTimer = setTimeout(scheduleMusicStep, 165);
     }
 
     function playMusicNote(freq, duration, type, volume) {
@@ -1767,8 +1908,40 @@
     }
 
     function beginRunWithInputHeld() {
-      resetGame();
+      if (!startGameFromMenu()) return;
       setPressing(true);
+    }
+
+    function startGameFromMenu() {
+      if (!tutorialAccepted) {
+        showTutorial();
+        return false;
+      }
+      resetGame();
+      return true;
+    }
+
+    function showTutorial() {
+      running = false;
+      paused = false;
+      pressing = false;
+      stopMusic();
+      startPanel.classList.add("hidden");
+      gameOverPanel.classList.add("hidden");
+      pausePanel.classList.add("hidden");
+      pauseBtn.classList.add("hidden");
+      legalAcceptCheck.checked = false;
+      tutorialContinueBtn.disabled = true;
+      tutorialPanel.classList.remove("hidden");
+      hideMenuAds();
+    }
+
+    function acceptTutorialAndStart() {
+      if (!legalAcceptCheck.checked) return;
+      tutorialAccepted = true;
+      localStorage.setItem(tutorialAcceptedKey, "true");
+      tutorialPanel.classList.add("hidden");
+      resetGame();
     }
 
     function pauseGame() {
@@ -1804,7 +1977,8 @@
     }
 
     function startFromInput(event) {
-      if (event.target && event.target.closest && event.target.closest("button")) return;
+      if (event.target && event.target.closest && event.target.closest("button, input, a, label")) return;
+      if (!tutorialPanel.classList.contains("hidden")) return;
       if (paused) return;
       event.preventDefault();
       if (!running && !gameOver && !levelComplete && !startPanel.classList.contains("hidden")) {
@@ -1823,7 +1997,7 @@
       return event.code === "Space" || event.key === " " || event.key === "Spacebar";
     }
 
-    startBtn.addEventListener("click", resetGame);
+    startBtn.addEventListener("click", startGameFromMenu);
     restartBtn.addEventListener("click", resetGame);
     pauseBtn.addEventListener("click", pauseGame);
     resumeBtn.addEventListener("click", resumeGame);
@@ -1849,6 +2023,10 @@
     removeAdsNoThanksBtn.addEventListener("click", showRemoveAdsDeclineConfirm);
     removeAdsDeclineBtn.addEventListener("click", hideRemoveAdsOffer);
     removeAdsTakeDealBtn.addEventListener("click", () => showRemoveAdsOffer(false));
+    legalAcceptCheck.addEventListener("change", () => {
+      tutorialContinueBtn.disabled = !legalAcceptCheck.checked;
+    });
+    tutorialContinueBtn.addEventListener("click", acceptTutorialAndStart);
 
     resetProgressBtn.addEventListener("click", () => {
       const confirmed = window.confirm("Reset Gravity Runner progress on this device?");
@@ -1904,6 +2082,8 @@
 
     window.addEventListener("keydown", (event) => {
       if (!isSpaceKey(event)) return;
+      if (event.target && event.target.closest && event.target.closest("input")) return;
+      if (!tutorialPanel.classList.contains("hidden")) return;
       event.preventDefault();
       if (event.repeat && running) return;
 
@@ -2015,7 +2195,7 @@
       if (isDemoBuild()) {
         return "No retries left. Start over at Level 1.";
       }
-      return "No retries left. Start over at Level 1 or use a rewarded ad for more tries.";
+      return "No retries left. Start over at Level 1 or watch a rewarded ad for 3 more tries.";
     }
 
     function getRewardPromptText() {
@@ -2029,7 +2209,7 @@
       if (isDemoBuild()) {
         return "No retries left. Start over at Level 1.";
       }
-      return "No retries left. Start over at Level 1 or use a rewarded ad for more tries.";
+      return "No retries left. Start over at Level 1 or watch a rewarded ad for 3 more tries.";
     }
 
     function getRetryButtonText() {
@@ -2070,6 +2250,10 @@
       return getDistributionChannel() === "aptoide";
     }
 
+    function isPlayStoreBuild() {
+      return getDistributionChannel() === "play";
+    }
+
     function isApkpureStoreBuild() {
       return getDistributionChannel() === "apkpure";
     }
@@ -2079,12 +2263,14 @@
     }
 
     function supportsRemoveAdsPurchases() {
-      return !isApkpureStoreBuild() && !isDemoBuild();
+      if (isPlayStoreBuild()) return false;
+      return isAptoideStoreBuild() || getDistributionChannel() === "samsung";
     }
 
     function getAppVersionLabel() {
       const channel = getDistributionChannel();
       if (channel === "samsung") return appVersion + " Galaxy Store";
+      if (channel === "play") return appVersion + " Google Play";
       if (channel === "aptoide") return appVersion + " Aptoide";
       if (channel === "apkpure") return appVersion + " APKPure";
       if (channel === "demo") return appVersion + " Demo";
