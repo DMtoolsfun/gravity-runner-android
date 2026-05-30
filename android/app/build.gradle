@@ -31,7 +31,7 @@ android {
         applicationId "fun.dmtools.gravityrunner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
+        versionCode 3
         versionName "1.0"
         buildConfigField "String", "DISTRIBUTION_CHANNEL", "\"${distributionChannel}\""
         buildConfigField "boolean", "IS_DEMO_DISTRIBUTION", "${isDemoDistribution}"
