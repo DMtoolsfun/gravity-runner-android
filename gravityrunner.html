@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gravity Runner</title>
+  <meta name="description" content="Gravity Runner is an original arcade action game from DMTools.fun LLC.">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050816;
+      --panel: #0c1530;
+      --panel-2: #101c3d;
+      --text: #f4f8ff;
+      --muted: #b8c8e8;
+      --line: rgba(95, 183, 255, 0.28);
+      --blue: #39b6ff;
+      --cyan: #63f0ff;
+      --green: #70ff9d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(57, 182, 255, 0.2), transparent 34rem),
+        linear-gradient(180deg, #050816 0%, #081128 58%, #050816 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    a {
+      color: var(--cyan);
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .hero {
+      min-height: 78vh;
+      display: grid;
+      align-items: center;
+      padding: 48px 0 28px;
+    }
+
+    .nav,
+    .footer {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 0;
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+      gap: 36px;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(3rem, 8vw, 6.7rem);
+      line-height: 0.95;
+      letter-spacing: 0;
+      text-shadow: 0 0 30px rgba(57, 182, 255, 0.35);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.7rem;
+      letter-spacing: 0;
+    }
+
+    .tagline {
+      margin: 22px 0 0;
+      max-width: 620px;
+      color: var(--cyan);
+      font-size: clamp(1.35rem, 3vw, 2.2rem);
+      font-weight: 700;
+    }
+
+    .intro {
+      max-width: 680px;
+      margin: 20px 0 0;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 46px;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(57, 182, 255, 0.12);
+      color: var(--text);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
+      color: #041021;
+      border-color: transparent;
+    }
+
+    .arcade-frame {
+      position: relative;
+      min-height: 420px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, rgba(99, 240, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(99, 240, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(180deg, #07122b, #080c1f);
+      background-size: 42px 42px, 42px 42px, auto;
+      box-shadow: 0 0 38px rgba(57, 182, 255, 0.16);
+    }
+
+    .gate {
+      position: absolute;
+      width: 74px;
+      border: 2px solid var(--blue);
+      box-shadow: 0 0 18px rgba(57, 182, 255, 0.45);
+    }
+
+    .gate.one {
+      height: 170px;
+      left: 18%;
+      top: -18px;
+    }
+
+    .gate.two {
+      height: 190px;
+      right: 25%;
+      bottom: -22px;
+    }
+
+    .gate.three {
+      height: 125px;
+      right: 8%;
+      top: 24px;
+    }
+
+    .ball {
+      position: absolute;
+      left: 42%;
+      top: 48%;
+      width: 42px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: radial-gradient(circle at 32% 28%, #ffffff, var(--cyan) 36%, var(--blue));
+      box-shadow: 0 0 26px rgba(99, 240, 255, 0.82);
+    }
+
+    .orb {
+      position: absolute;
+      right: 16%;
+      top: 52%;
+      width: 20px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 18px rgba(112, 255, 157, 0.86);
+    }
+
+    section {
+      padding: 54px 0;
+    }
+
+    .section-panel {
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      background: rgba(12, 21, 48, 0.72);
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .card {
+      min-height: 128px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 1.03rem;
+      letter-spacing: 0;
+    }
+
+    .card p,
+    .play p,
+    .footer {
+      color: var(--muted);
+    }
+
+    .play {
+      display: grid;
+      gap: 10px;
+      max-width: 720px;
+    }
+
+    .play-note {
+      margin: 0;
+    }
+
+    @media (max-width: 800px) {
+      .hero-grid,
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .arcade-frame {
+        min-height: 320px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="wrap nav" aria-label="Site">
+    <div class="brand">DMTools.fun LLC</div>
+    <nav class="links" aria-label="Gravity Runner pages">
+      <a href="gravityrunner-privacy.html">Privacy</a>
+      <a href="gravityrunner-terms.html">Terms</a>
+      <a href="gravityrunner-support.html">Support</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <h1>Gravity Runner</h1>
+          <p class="tagline">Tap to rise. Release to fall. Master the maze.</p>
+          <p class="intro">Gravity Runner is an original arcade action game where players guide a ball through scrolling gate mazes, collect power orbs, survive levels, and chase better scores.</p>
+          <div class="cta-row">
+            <a class="button primary" href="https://play.google.com/store/apps/details?id=fun.dmtools.gravityrunner">Download on Google Play</a>
+            <a class="button" href="gravityrunner-support.html">Get support</a>
+          </div>
+        </div>
+        <div class="arcade-frame" aria-label="Arcade maze scene">
+          <div class="gate one"></div>
+          <div class="gate two"></div>
+          <div class="gate three"></div>
+          <div class="ball"></div>
+          <div class="orb"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-panel" id="google-play">
+      <div class="wrap play">
+        <h2>Available now on Google Play</h2>
+        <p class="play-note"><a class="button primary" href="https://play.google.com/store/apps/details?id=fun.dmtools.gravityrunner">Download on Google Play</a></p>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Game Features</h2>
+        <div class="feature-grid">
+          <article class="card">
+            <h3>One-touch arcade control</h3>
+            <p>Tap to rise and release to fall through each run.</p>
+          </article>
+          <article class="card">
+            <h3>Level-based maze challenge</h3>
+            <p>Guide the ball through scrolling gate mazes and survive each level.</p>
+          </article>
+          <article class="card">
+            <h3>Power orbs and retries</h3>
+            <p>Collect power orbs and use retries when they are available.</p>
+          </article>
+          <article class="card">
+            <h3>Fast mobile sessions</h3>
+            <p>Play quick arcade runs built for short mobile sessions.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <div>Gravity Runner by DMTools.fun LLC</div>
+    <div class="links">
+      <a href="mailto:support@dmtools.fun">support@dmtools.fun</a>
+      <a href="gravityrunner-privacy.html">Privacy</a>
+      <a href="gravityrunner-terms.html">Terms</a>
+      <a href="gravityrunner-support.html">Support</a>
+    </div>
+  </footer>
+</body>
+</html>
