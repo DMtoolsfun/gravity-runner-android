@@ -3,9 +3,8 @@ apply plugin: 'com.android.application'
 def keystorePropertiesFile = rootProject.file('key.properties')
 def keystoreProperties = new Properties()
 def hasReleaseSigningConfig = keystorePropertiesFile.exists()
-def distributionChannel = (project.findProperty("distributionChannel") ?: "samsung").toString()
+def distributionChannel = (project.findProperty("distributionChannel") ?: "play").toString()
 def isDemoDistribution = distributionChannel.equalsIgnoreCase("demo")
-def aptoidePublicKey = (project.findProperty("aptoidePublicKey") ?: "").toString()
 
 // Debug builds use Google's public AdMob test IDs. Release builds use Gravity Runner production IDs.
 def admobDebugApplicationId = "ca-app-pub-3940256099942544~3347511713"
@@ -16,6 +15,22 @@ def admobReleaseApplicationId = "ca-app-pub-7088647938932607~1834052926"
 def admobReleaseBannerId = "ca-app-pub-7088647938932607/1361764263"
 def admobReleaseInterstitialId = "ca-app-pub-7088647938932607/6996704093"
 def admobReleaseRewardedId = "ca-app-pub-7088647938932607/1991789429"
+def gradleProperty = { primaryName, secondaryName, defaultValue ->
+    def value = project.findProperty(primaryName)
+    if (value == null && secondaryName != null) {
+        value = project.findProperty(secondaryName)
+    }
+    (value ?: defaultValue).toString()
+}
+def adProvider = gradleProperty("adProvider", "AD_PROVIDER", "auto")
+def unityGameIdAndroid = gradleProperty("UNITY_GAME_ID_ANDROID", "unityGameIdAndroid", "800080920")
+def unityRewardedPlacement = gradleProperty("UNITY_REWARDED_PLACEMENT", "unityRewardedPlacement", "Rewarded_Android")
+def unityInterstitialPlacement = gradleProperty("UNITY_INTERSTITIAL_PLACEMENT", "unityInterstitialPlacement", "Interstitial_Android")
+def unityBannerPlacement = gradleProperty("UNITY_BANNER_PLACEMENT", "unityBannerPlacement", "Banner_Android")
+def unityAdsTestMode = gradleProperty("UNITY_ADS_TEST_MODE", "unityAdsTestMode", "false").toBoolean()
+def buildConfigString = { value ->
+    "\"${value.replace('\\', '\\\\').replace('\"', '\\\"')}\""
+}
 
 if (hasReleaseSigningConfig) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
@@ -31,11 +46,15 @@ android {
         applicationId "fun.dmtools.gravityrunner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.0"
+        versionCode 5
+        versionName "1.0.2"
         buildConfigField "String", "DISTRIBUTION_CHANNEL", "\"${distributionChannel}\""
         buildConfigField "boolean", "IS_DEMO_DISTRIBUTION", "${isDemoDistribution}"
-        buildConfigField "String", "APTOIDE_PUBLIC_KEY", "\"${aptoidePublicKey.replace('\\', '\\\\').replace('\"', '\\\"')}\""
+        buildConfigField "String", "AD_PROVIDER", buildConfigString(adProvider)
+        buildConfigField "String", "UNITY_GAME_ID_ANDROID", buildConfigString(unityGameIdAndroid)
+        buildConfigField "String", "UNITY_REWARDED_PLACEMENT", buildConfigString(unityRewardedPlacement)
+        buildConfigField "String", "UNITY_INTERSTITIAL_PLACEMENT", buildConfigString(unityInterstitialPlacement)
+        buildConfigField "String", "UNITY_BANNER_PLACEMENT", buildConfigString(unityBannerPlacement)
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -59,6 +78,7 @@ android {
             buildConfigField "String", "ADMOB_BANNER_ID", "\"${admobDebugBannerId}\""
             buildConfigField "String", "ADMOB_INTERSTITIAL_ID", "\"${admobDebugInterstitialId}\""
             buildConfigField "String", "ADMOB_REWARDED_ID", "\"${admobDebugRewardedId}\""
+            buildConfigField "boolean", "UNITY_ADS_TEST_MODE", "true"
         }
         release {
             if (hasReleaseSigningConfig) {
@@ -68,6 +88,7 @@ android {
             buildConfigField "String", "ADMOB_BANNER_ID", "\"${admobReleaseBannerId}\""
             buildConfigField "String", "ADMOB_INTERSTITIAL_ID", "\"${admobReleaseInterstitialId}\""
             buildConfigField "String", "ADMOB_REWARDED_ID", "\"${admobReleaseRewardedId}\""
+            buildConfigField "boolean", "UNITY_ADS_TEST_MODE", "${unityAdsTestMode}"
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -85,12 +106,13 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
-    implementation "com.aptoide:android-aptoide-billing:1.3.0"
     implementation "com.google.android.gms:play-services-ads:25.2.0"
+    implementation "com.unity3d.ads:unity-ads:4.7.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation "com.android.billingclient:billing:9.0.0"
     implementation project(':capacitor-cordova-android-plugins')
 }
 

@@ -253,6 +253,20 @@
       color: #050505;
     }
 
+    .offerCreditText,
+    .offerStatusText {
+      color: #bdfbff;
+      font-size: 13px;
+      font-weight: 900;
+      margin-top: 10px;
+      min-height: 18px;
+      text-transform: uppercase;
+    }
+
+    .offerStatusText {
+      color: #ffe66d;
+    }
+
     .tutorialList {
       margin: 16px 0;
       color: #ddd;
@@ -611,6 +625,20 @@
         </div>
       </div>
     </section>
+
+    <section id="retryOfferPanel" class="offerOverlay hidden" aria-modal="true" role="dialog">
+      <div class="box">
+        <h1>Keep Running?</h1>
+        <p class="subtitle">Get retry credits before the level failed screen.</p>
+        <p class="offerCreditText" id="retryOfferCreditsText">Retry credits: 0</p>
+        <p class="offerStatusText" id="retryOfferStatusText"></p>
+        <div class="offerActions">
+          <button id="buyRetriesBtn" class="offerBtn primary" type="button">Buy 10 Retries</button>
+          <button id="watchRetryOfferAdBtn" class="offerBtn secondary" type="button">Watch Ad: +3 Retries</button>
+          <button id="retryOfferNoThanksBtn" class="offerBtn neutral" type="button">No Thanks</button>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script>
@@ -664,6 +692,12 @@
     const removeAdsNoThanksBtn = document.getElementById("removeAdsNoThanksBtn");
     const removeAdsDeclineBtn = document.getElementById("removeAdsDeclineBtn");
     const removeAdsTakeDealBtn = document.getElementById("removeAdsTakeDealBtn");
+    const retryOfferPanel = document.getElementById("retryOfferPanel");
+    const retryOfferCreditsText = document.getElementById("retryOfferCreditsText");
+    const retryOfferStatusText = document.getElementById("retryOfferStatusText");
+    const buyRetriesBtn = document.getElementById("buyRetriesBtn");
+    const watchRetryOfferAdBtn = document.getElementById("watchRetryOfferAdBtn");
+    const retryOfferNoThanksBtn = document.getElementById("retryOfferNoThanksBtn");
     const tutorialPanel = document.getElementById("tutorialPanel");
     const legalAcceptCheck = document.getElementById("legalAcceptCheck");
     const tutorialContinueBtn = document.getElementById("tutorialContinueBtn");
@@ -717,6 +751,7 @@
       maxLives: 5,
       freeRetriesPerLevel: 3,
       adRetryGrant: 3,
+      paidRetryGrant: 10,
       pointBonus: 1250,
       streakBonus: 1000,
       wallWidth: 54,
@@ -763,6 +798,8 @@
     let rewardedAdCooldownAt = Number(localStorage.getItem("gravityRunnerRewardedAdCooldownAt") || 0);
     let removeAdsOfferCounter = Number(localStorage.getItem("gravityRunnerRemoveAdsOfferCounter") || 0);
     let lastRemoveAdsOfferAt = Number(localStorage.getItem("gravityRunnerLastRemoveAdsOfferAt") || 0);
+    let retryPurchaseAvailable = false;
+    let retryPurchaseStatusRequested = false;
     const interstitialCooldownMs = 90000;
     const rewardedInterstitialBlockMs = 90000;
     const removeAdsOfferCooldownMs = 300000;
@@ -911,6 +948,7 @@
       gameOverAdSlot.classList.add("hidden");
       startPanel.classList.add("hidden");
       gameOverPanel.classList.add("hidden");
+      retryOfferPanel.classList.add("hidden");
       pausePanel.classList.add("hidden");
       tutorialPanel.classList.add("hidden");
       pauseBtn.classList.remove("hidden");
@@ -1118,10 +1156,8 @@
       levelScoreStart = score;
       currentLevel += 1;
       levelFailAttempts = 0;
-      adRetryCredits = 0;
       localStorage.setItem("gravityRunnerCurrentLevel", String(currentLevel));
       localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
-      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
 
       const isNewBest = rounded > best;
       if (isNewBest) {
@@ -1420,6 +1456,12 @@
       pauseBtn.classList.add("hidden");
       levelFailAttempts += 1;
       localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
+      logRetryOfferEvent("fail_attempt", {
+        level: currentLevel,
+        attempts: levelFailAttempts,
+        freeRetries: settings.freeRetriesPerLevel,
+        retryCredits: adRetryCredits
+      });
       levelComplete = false;
       gateStreak = 0;
       powerBarWrap.classList.add("hidden");
@@ -1462,12 +1504,134 @@
       bestText.textContent = best;
 
       setTimeout(() => {
-        gameOverPanel.classList.remove("hidden");
-        maybeShowInterstitial("level_failed", currentLevel);
-        updateAdSlots();
-        maybeShowRemoveAdsOffer("level_failed", currentLevel);
+        if (shouldShowRetryOffer()) {
+          showRetryOffer();
+          return;
+        }
+        showLevelFailedScreen();
       }, 350);
       updateStartStats();
+    }
+
+    function shouldShowRetryOffer() {
+      const eligible = !isDemoBuild() && gameOver && !levelComplete && levelFailAttempts >= settings.freeRetriesPerLevel;
+      logRetryOfferEvent("eligibility", {
+        eligible,
+        level: currentLevel,
+        attempts: levelFailAttempts,
+        freeRetries: settings.freeRetriesPerLevel,
+        retryCredits: adRetryCredits,
+        gameOver,
+        levelComplete,
+        distribution: getDistributionChannel()
+      });
+      return eligible;
+    }
+
+    function showLevelFailedScreen() {
+      logRetryOfferEvent("hide_failed_screen", {
+        level: currentLevel,
+        attempts: levelFailAttempts,
+        retryCredits: adRetryCredits
+      });
+      retryOfferPanel.classList.add("hidden");
+      gameOverPanel.classList.remove("hidden");
+      maybeShowInterstitial("level_failed", currentLevel);
+      updateAdSlots();
+      maybeShowRemoveAdsOffer("level_failed", currentLevel);
+    }
+
+    function updateRetryOfferUi() {
+      retryOfferCreditsText.textContent = "Retry credits: " + adRetryCredits;
+      watchRetryOfferAdBtn.textContent = "Watch Ad: +" + settings.adRetryGrant + " Retries";
+      const canPurchaseRetries = isPlayStoreBuild() && retryPurchaseAvailable;
+      buyRetriesBtn.disabled = !canPurchaseRetries;
+      if (!isPlayStoreBuild()) {
+        retryOfferStatusText.textContent = "Purchase unavailable.";
+      } else if (!retryPurchaseAvailable) {
+        const statusText = retryOfferStatusText.textContent;
+        if (!statusText || statusText === "Checking purchase..." || statusText === "Opening purchase...") {
+          retryOfferStatusText.textContent = retryPurchaseStatusRequested ? "Purchase unavailable." : "Checking purchase...";
+        }
+      } else if (!retryOfferStatusText.textContent || retryOfferStatusText.textContent === "Purchase unavailable." || retryOfferStatusText.textContent === "Checking purchase...") {
+        retryOfferStatusText.textContent = "";
+      }
+      watchRetryOfferAdBtn.disabled = isDemoBuild();
+    }
+
+    function showRetryOfferMessage(message) {
+      retryOfferStatusText.textContent = message;
+    }
+
+    function logRetryOfferEvent(eventName, details = {}) {
+      const payload = Object.assign({
+        event: eventName,
+        level: currentLevel,
+        attempts: levelFailAttempts,
+        retryCredits: adRetryCredits
+      }, details);
+      console.log("[RetryOffer]", payload);
+      const bridge = getNativeBridge();
+      if (bridge && typeof bridge.logRetryOfferEvent === "function") {
+        try {
+          bridge.logRetryOfferEvent(String(eventName), JSON.stringify(payload));
+        } catch (error) {
+          console.warn("GravityRunnerNative.logRetryOfferEvent failed", error);
+        }
+      }
+    }
+
+    function requestRetryBundleStatus() {
+      retryPurchaseStatusRequested = true;
+      if (!isPlayStoreBuild()) {
+        retryPurchaseAvailable = false;
+        updateRetryOfferUi();
+        return;
+      }
+      callNativeBridge("requestRetryBundleStatus", () => {
+        retryPurchaseAvailable = false;
+        showRetryOfferMessage("Purchase unavailable.");
+        updateRetryOfferUi();
+      });
+    }
+
+    function showRetryOffer() {
+      logRetryOfferEvent("show", {
+        purchaseAvailable: retryPurchaseAvailable,
+        purchaseStatusRequested: retryPurchaseStatusRequested
+      });
+      gameOverPanel.classList.add("hidden");
+      retryOfferStatusText.textContent = "";
+      retryPurchaseStatusRequested = false;
+      updateRetryOfferUi();
+      retryOfferPanel.classList.remove("hidden");
+      requestRetryBundleStatus();
+    }
+
+    function closeRetryOfferToFailedScreen() {
+      logRetryOfferEvent("no_thanks_fallback");
+      retryOfferPanel.classList.add("hidden");
+      showLevelFailedScreen();
+    }
+
+    function addRetryCredits(amount) {
+      const grantAmount = Math.max(0, Math.floor(Number(amount) || 0));
+      if (grantAmount <= 0) return;
+      adRetryCredits += grantAmount;
+      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
+      updateRetryOfferUi();
+    }
+
+    function beginRetryFromOffer() {
+      logRetryOfferEvent("hide_begin_retry");
+      retryOfferPanel.classList.add("hidden");
+      resetGame();
+    }
+
+    function setRetryPurchaseAvailable(available) {
+      retryPurchaseAvailable = Boolean(available);
+      retryPurchaseStatusRequested = true;
+      updateRetryOfferUi();
     }
 
     function draw() {
@@ -1979,6 +2143,8 @@
     function startFromInput(event) {
       if (event.target && event.target.closest && event.target.closest("button, input, a, label")) return;
       if (!tutorialPanel.classList.contains("hidden")) return;
+      if (!retryOfferPanel.classList.contains("hidden")) return;
+      if (!removeAdsOfferPanel.classList.contains("hidden")) return;
       if (paused) return;
       event.preventDefault();
       if (!running && !gameOver && !levelComplete && !startPanel.classList.contains("hidden")) {
@@ -2062,6 +2228,10 @@
       requestRewardedRetryGrant();
     });
 
+    buyRetriesBtn.addEventListener("click", purchaseRetryBundle);
+    watchRetryOfferAdBtn.addEventListener("click", requestRetryOfferRewardedGrant);
+    retryOfferNoThanksBtn.addEventListener("click", closeRetryOfferToFailedScreen);
+
     difficultyButtons.forEach((button) => {
       button.addEventListener("click", () => {
         if (running && !paused) return;
@@ -2084,6 +2254,8 @@
       if (!isSpaceKey(event)) return;
       if (event.target && event.target.closest && event.target.closest("input")) return;
       if (!tutorialPanel.classList.contains("hidden")) return;
+      if (!retryOfferPanel.classList.contains("hidden")) return;
+      if (!removeAdsOfferPanel.classList.contains("hidden")) return;
       event.preventDefault();
       if (event.repeat && running) return;
 
@@ -2147,7 +2319,6 @@
       levelScoreStart = 0;
       score = 0;
       levelFailAttempts = 0;
-      adRetryCredits = 0;
       gameOver = false;
       levelComplete = false;
       paused = false;
@@ -2155,9 +2326,9 @@
       pressing = false;
       localStorage.setItem("gravityRunnerCurrentLevel", String(currentLevel));
       localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
-      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
       pausePanel.classList.add("hidden");
       gameOverPanel.classList.add("hidden");
+      retryOfferPanel.classList.add("hidden");
       startPanel.classList.remove("hidden");
       pauseBtn.classList.add("hidden");
       levelText.textContent = currentLevel;
@@ -2172,10 +2343,8 @@
       levelScoreStart = 0;
       score = 0;
       levelFailAttempts = 0;
-      adRetryCredits = 0;
       localStorage.setItem("gravityRunnerCurrentLevel", String(currentLevel));
       localStorage.setItem("gravityRunnerLevelFailAttempts", String(levelFailAttempts));
-      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
       showMessage("BACK TO LEVEL 1", 58);
       resetGame();
     }
@@ -2190,7 +2359,7 @@
         return "Level " + currentLevel + " Progress: " + levelGatesCleared + "/" + getLevelGoal() + " Gates / Retries Left: " + retriesLeft;
       }
       if (adRetryCredits > 0) {
-        return "Level " + currentLevel + " Progress: " + levelGatesCleared + "/" + getLevelGoal() + " Gates / Ad Retry Credits: " + adRetryCredits;
+        return "Level " + currentLevel + " Progress: " + levelGatesCleared + "/" + getLevelGoal() + " Gates / Retry Credits: " + adRetryCredits;
       }
       if (isDemoBuild()) {
         return "No retries left. Start over at Level 1.";
@@ -2204,7 +2373,7 @@
         return "You have " + retriesLeft + " normal retries left on this level.";
       }
       if (adRetryCredits > 0) {
-        return "Reward credit active: " + adRetryCredits + " extra retry credit(s).";
+        return "Retry credit active: " + adRetryCredits + " extra retry credit(s).";
       }
       if (isDemoBuild()) {
         return "No retries left. Start over at Level 1.";
@@ -2215,7 +2384,7 @@
     function getRetryButtonText() {
       const retriesLeft = getRetriesLeft();
       if (retriesLeft > 0) return "Retry Level " + currentLevel + " (" + retriesLeft + " Left)";
-      if (adRetryCredits > 0) return "Retry Level " + currentLevel + " (Ad Credit " + adRetryCredits + ")";
+      if (adRetryCredits > 0) return "Retry Level " + currentLevel + " (Credit " + adRetryCredits + ")";
       return "Start Over at Level 1";
     }
 
@@ -2456,14 +2625,41 @@
     function requestRewardedContinue() {
       if (isDemoBuild()) return;
       callNativeBridge("showRewardedContinueAd", () => {
-        showMessage("REWARD AD NEEDS SDK", 70);
+        rewardedAdUnavailable();
       });
     }
 
     function requestRewardedRetryGrant() {
       if (isDemoBuild()) return;
       callNativeBridge("showRewardedRetryAd", () => {
-        showMessage("REWARD AD NEEDS SDK", 70);
+        rewardedAdUnavailable();
+      });
+    }
+
+    function requestRetryOfferRewardedGrant() {
+      if (isDemoBuild()) return;
+      logRetryOfferEvent("rewarded_retry_tap");
+      retryOfferStatusText.textContent = "";
+      callNativeBridge("showRewardedRetryOfferAd", () => {
+        logRetryOfferEvent("rewarded_retry_unavailable");
+        showRetryOfferMessage("Ad not available right now.");
+      });
+    }
+
+    function purchaseRetryBundle() {
+      logRetryOfferEvent("purchase_tap", {
+        playStoreBuild: isPlayStoreBuild(),
+        purchaseAvailable: retryPurchaseAvailable
+      });
+      if (!isPlayStoreBuild() || !retryPurchaseAvailable) {
+        showRetryOfferMessage("Purchase unavailable.");
+        return;
+      }
+      buyRetriesBtn.disabled = true;
+      showRetryOfferMessage("Opening purchase...");
+      callNativeBridge("purchaseRetryBundle", () => {
+        setRetryPurchaseAvailable(false);
+        showRetryOfferMessage("Purchase unavailable.");
       });
     }
 
@@ -2490,12 +2686,40 @@
 
     function grantRewardedRetries() {
       markRewardedAdCompleted();
-      adRetryCredits += settings.adRetryGrant;
-      localStorage.setItem("gravityRunnerAdRetryCredits", String(adRetryCredits));
+      addRetryCredits(settings.adRetryGrant);
       showMessage("+" + settings.adRetryGrant + " RETRIES", 62);
       rewardPromptText.textContent = "Reward granted: " + settings.adRetryGrant + " extra retries for Level " + currentLevel + ".";
       restartBtn.textContent = getRetryButtonText();
       updateRewardButtons();
+    }
+
+    function grantRetryOfferRewardedRetries() {
+      markRewardedAdCompleted();
+      addRetryCredits(settings.adRetryGrant);
+      showMessage("+" + settings.adRetryGrant + " RETRIES", 62);
+      beginRetryFromOffer();
+    }
+
+    function grantPurchasedRetries(amount) {
+      const grantAmount = Math.max(1, Math.floor(Number(amount) || settings.paidRetryGrant));
+      addRetryCredits(grantAmount);
+      showMessage("+" + grantAmount + " RETRIES", 62);
+      if (gameOver && !levelComplete) {
+        beginRetryFromOffer();
+      }
+    }
+
+    function rewardedAdUnavailable() {
+      if (!retryOfferPanel.classList.contains("hidden")) {
+        showRetryOfferMessage("Ad not available right now.");
+      } else {
+        showMessage("AD NOT AVAILABLE", 70);
+      }
+    }
+
+    function retryPurchaseMessage(message) {
+      showRetryOfferMessage(message || "Purchase unavailable.");
+      updateRetryOfferUi();
     }
 
     function markInterstitialShown() {
@@ -2590,6 +2814,11 @@
     window.GravityRunnerRewards = {
       grantContinue: grantRewardedContinue,
       grantRetries: grantRewardedRetries,
+      grantRetryOfferRetries: grantRetryOfferRewardedRetries,
+      grantPurchasedRetries,
+      rewardedAdUnavailable,
+      setRetryPurchaseAvailable,
+      retryPurchaseMessage,
       markInterstitialShown,
       setAdsRemoved,
       setAdsRemovedUntil,
